@@ -1,0 +1,85 @@
+- main [ref=f13e2]:
+  - generic "Loading" [ref=f13e18]
+  - generic [ref=f13e21]:
+    - generic [ref=f13e22]: "0"
+    - generic [ref=f13e23]: "%"
+  - generic [ref=f13e25]:
+    - navigation "Primary navigation" [ref=f13e26]:
+      - link "About" [ref=f13e27]:
+        - /url: "#about"
+      - link "Explore" [ref=f13e28]:
+        - /url: "#explore"
+      - link "Planets" [ref=f13e29]:
+        - /url: "#planets"
+    - switch "Dark mode" [checked] [ref=f13e30]
+    - button "Menu" [ref=f13e38]
+  - complementary "Planets" [ref=f13e39]:
+    - button "Home" [ref=f13e40]
+    - button "Train" [ref=f13e41]
+    - button "Eat" [ref=f13e42]
+    - button "Progress" [ref=f13e43]
+    - button "Coach" [ref=f13e44]
+    - button "Settings" [ref=f13e45]
+    - button "Sign Out" [ref=f13e46]
+  - region "Today" [ref=f13e47]:
+    - generic [ref=f13e48]:
+      - generic [ref=f13e49]: Good Morning · GENERAL FITNESS
+      - heading "S YESHWANTH." [level=2] [ref=f13e50]
+    - generic [ref=f13e51]:
+      - article [ref=f13e52]:
+        - generic [ref=f13e55]: Your session today
+        - heading "Full body A" [level=3] [ref=f13e56]
+        - generic [ref=f13e57]: Whole body
+        - generic [ref=f13e58]: about 38 minutes
+        - button "Start session →" [ref=f13e59]
+      - article [ref=f13e60]:
+        - generic [ref=f13e61]: Training focus
+        - heading "Balanced — general fitness" [level=3] [ref=f13e62]
+        - generic [ref=f13e63]: 4 days a week
+      - article [ref=f13e64]:
+        - generic [ref=f13e65]: Calories today
+        - generic [ref=f13e66]:
+          - generic [ref=f13e67]: "0"
+          - generic [ref=f13e68]: / 2,363 kcal
+      - article [ref=f13e70]:
+        - generic [ref=f13e71]: This week
+        - generic [ref=f13e72]:
+          - generic [ref=f13e73]: "0"
+          - generic [ref=f13e74]: of 4 sessions
+        - button "See progress →" [ref=f13e77]
+      - article [ref=f13e78]:
+        - generic [ref=f13e79]: Daily check-in
+        - generic [ref=f13e80]: Ten seconds. It shapes today’s load.
+        - generic [ref=f13e81]:
+          - generic [ref=f13e82]:
+            - generic [ref=f13e83]: Energy
+            - generic [ref=f13e84]: 3 / 5
+          - slider "Energy" [ref=f13e85]
+        - generic [ref=f13e91]:
+          - generic [ref=f13e92]:
+            - generic [ref=f13e93]: Sleep quality
+            - generic [ref=f13e94]: 3 / 5
+          - slider "Sleep quality" [ref=f13e95]
+        - generic [ref=f13e101]:
+          - generic [ref=f13e102]:
+            - generic [ref=f13e103]: Soreness
+            - generic [ref=f13e104]: 3 / 5
+          - slider "Soreness" [ref=f13e105]
+        - generic [ref=f13e111]:
+          - generic [ref=f13e112]:
+            - generic [ref=f13e113]: Stress
+            - generic [ref=f13e114]: 3 / 5
+          - slider "Stress" [ref=f13e115]
+        - button "Log check-in" [ref=f13e121]
+  - region "Next destination" [ref=f13e122]:
+    - generic [ref=f13e123]:
+      - generic [ref=f13e124]: "Next:"
+      - generic [ref=f13e125]:
+        - text: "[02]"
+        - strong [ref=f13e126]: Train
+    - button "Go to Train" [ref=f13e127]
+  - heading "HOME" [level=1] [ref=f13e129]
+  - status
+  - generic [aria-hidden]: Preparing orbit…
+  - generic [aria-hidden]:
+    - generic: Enter

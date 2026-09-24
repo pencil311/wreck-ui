@@ -1,0 +1,6 @@
+{
+  "name": "Planet Jumping",
+  "description": "Immersive space portal experience featuring 3D canvas portal tilt, cinematic planetary travel, and video preloader sequence.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

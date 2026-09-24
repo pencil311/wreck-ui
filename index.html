@@ -1,0 +1,4646 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Planet Jumping</title>
+    <meta name="description" content="Immersive space portal experience featuring 3D canvas portal tilt, cinematic planetary travel, and video preloader sequence." />
+    <meta property="og:title" content="Planet Jumping" />
+    <meta property="og:description" content="Immersive space portal experience featuring 3D canvas portal tilt, cinematic planetary travel, and video preloader sequence." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <style>
+      @font-face {
+        font-family: 'SF Pro';
+        src: local('SF Pro Text'), local('SF Pro'), local('SFProText-Regular'), local('Helvetica Neue'), local('Arial');
+        font-weight: 400;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'SF Pro';
+        src: local('SF Pro Text Bold'), local('SF Pro Bold'), local('SFProText-Bold'), local('Helvetica Neue Bold'), local('Arial Bold');
+        font-weight: 700;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'SF Pro Thin';
+        src: local('SF Pro Display Thin'), local('SF Pro Thin'), local('SFProDisplay-Thin');
+        font-weight: 100;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Aalto';
+        src: local('Aalto'), local('Archivo Narrow'), local('Roboto Condensed'), local('Oswald'), local('Haettenschweiler'), local('Franklin Gothic Medium Cond'), local('Arial Narrow');
+        font-weight: 400;
+        font-style: normal;
+      }
+
+      /* Dark is the base; light overrides below. Text splits in two:
+         --glass-ink sits on a controlled glass surface and flips with the theme,
+         while --ink floats directly on photography and stays light in both
+         themes so it survives the dark space backgrounds too. */
+      :root {
+        font-family: 'SF Pro', Arial, sans-serif;
+        font-synthesis: none;
+        --accent: #FF4A0F;
+        --ink: #fff;
+        --ink-shadow: 0 1px 14px rgba(0, 0, 0, .55);
+        --ink-dim: rgba(255, 255, 255, .7);
+        --glass-bg: rgba(255, 255, 255, .1);
+        --glass-border: rgba(255, 255, 255, .45);
+        --glass-ink: #fff;
+        --solid-bg: #fff;
+        --solid-ink: #000;
+        --page-bg: #090807;
+        --card-bg: rgba(4, 24, 32, .55);
+        --card-border: rgba(255, 255, 255, .08);
+        --card-ink: #fff;
+        --card-dim: rgba(255, 255, 255, .6);
+        --card-rule: rgba(255, 255, 255, .1);
+        --seg-bg: rgba(255, 255, 255, .05);
+        --seg-border: rgba(255, 255, 255, .12);
+        --bar-track: rgba(255, 255, 255, .8);
+        --highlight: rgba(255, 255, 255, .16);
+        color: var(--ink);
+        background: var(--page-bg);
+      }
+      :root[data-theme="light"] {
+        /* the day photo is bright, so floating text needs a harder shadow */
+        --ink-shadow: 0 1px 10px rgba(0, 0, 0, .85), 0 0 2px rgba(0, 0, 0, .6);
+        --ink-dim: rgba(255, 255, 255, .88);
+        --glass-bg: rgba(255, 255, 255, .55);
+        --glass-border: rgba(20, 17, 14, .22);
+        --glass-ink: #14110E;
+        --solid-bg: #14110E;
+        --solid-ink: #fff;
+        --page-bg: #dfe6ef;
+        --card-bg: rgba(255, 255, 255, .35);
+        --card-border: rgba(255, 255, 255, .6);
+        --card-ink: #14110E;
+        --card-dim: rgba(20, 17, 14, .62);
+        --card-rule: rgba(20, 17, 14, .12);
+        --seg-bg: rgba(20, 17, 14, .06);
+        --seg-border: rgba(20, 17, 14, .16);
+        --bar-track: rgba(20, 17, 14, .45);
+        --highlight: rgba(255, 255, 255, .5);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html, body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+      html, body, button, a, .portal {
+        cursor: none !important;
+      }
+
+      .experience {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        min-height: 540px;
+        overflow: hidden;
+        background: #0a0908;
+      }
+      .backgrounds, .background, .shade, .transition-layer, .transition-layer video {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .background {
+        object-fit: cover;
+        opacity: 0;
+        transition: opacity .8s ease;
+      }
+      .background.is-visible {
+        opacity: 1;
+      }
+      .shade {
+        z-index: 1;
+        background: linear-gradient(to bottom, transparent 52%, rgba(0, 0, 0, .88) 100%);
+        pointer-events: none;
+      }
+      .chrome {
+        position: absolute;
+        z-index: 4;
+        transition: opacity .45s ease, filter .45s ease;
+      }
+      .experience.is-transitioning .chrome {
+        opacity: 0;
+        filter: blur(8px);
+        pointer-events: none;
+      }
+
+      /* HEADER */
+      .header {
+        left: clamp(18px, 1.95vw, 28px);
+        right: clamp(18px, 1.95vw, 28px);
+        top: clamp(18px, 3.1vh, 28px);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .header-actions {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .nav {
+        display: flex;
+        align-items: center;
+        height: 42px;
+        padding: 4px 5px;
+        border: 1px solid var(--glass-border);
+        background: var(--glass-bg);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-radius: 999px;
+      }
+      .nav a {
+        color: var(--glass-ink);
+        text-decoration: none;
+        padding: 8px 19px;
+        border-radius: 999px;
+        line-height: 1;
+      }
+      .nav a.active {
+        background: var(--solid-bg);
+        color: var(--solid-ink);
+      }
+      .menu {
+        height: 42px;
+        padding: 0 20px;
+        border: 0;
+        border-radius: 999px;
+        background: var(--solid-bg);
+        color: var(--solid-ink);
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 16px;
+        font-weight: 500;
+      }
+
+      .theme-toggle {
+        position: relative;
+        width: 76px;
+        height: 42px;
+        padding: 0;
+        border: 1px solid var(--glass-border);
+        border-radius: 999px;
+        background: var(--glass-bg);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        cursor: pointer;
+        font-family: inherit;
+      }
+      .theme-knob {
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        background: var(--accent);
+        transition: transform .45s cubic-bezier(.22, 1, .36, 1);
+      }
+      :root[data-theme="dark"] .theme-knob {
+        transform: translateX(34px);
+      }
+      .theme-icons {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-around;
+      }
+      .theme-icon {
+        position: relative;
+        width: 18px;
+        height: 18px;
+        color: var(--glass-ink);
+        opacity: .55;
+        transition: color .3s ease, opacity .3s ease;
+      }
+      :root[data-theme="light"] .theme-sun,
+      :root[data-theme="dark"] .theme-moon {
+        color: #fff;
+        opacity: 1;
+      }
+
+      /* HOME BACKGROUND (day/night pair in one slot) */
+      .home-bg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0;
+        transition: opacity .9s ease;
+      }
+      :root[data-theme="light"] .home-bg-day,
+      :root[data-theme="dark"] .home-bg-night {
+        opacity: 1;
+      }
+
+      .home-layer {
+        position: absolute;
+        inset: 0;
+        will-change: transform;
+      }
+      /* the grass band, feathered so the overlay has no visible seam */
+      .home-grass {
+        top: 62%;
+        -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 24%, #000 100%);
+        mask-image: linear-gradient(to bottom, transparent 0%, #000 24%, #000 100%);
+      }
+      /* full resolution now that nothing is filtering it */
+      .home-grass-inner {
+        position: absolute;
+        inset: 0;
+        transform-origin: 50% 100%;
+        will-change: transform;
+        animation: grass-idle 6.5s ease-in-out infinite;
+      }
+      /* the band shows the bottom 38% of the same cover-fitted frame */
+      .home-grass .home-bg {
+        top: auto;
+        bottom: 0;
+        height: 263.16%;
+      }
+      /* Idle sway only: a compositor-only transform that never reacts to the
+         cursor. The cursor drives parallax on the layer above, nothing else. */
+      @keyframes grass-idle {
+        0%, 100% { transform: translate3d(0, 0, 0) skewX(0deg); }
+        50%      { transform: translate3d(5px, 0, 0) skewX(.55deg); }
+      }
+      /* cloud drift: the base is scaled slightly so it has slack to move within */
+      :root[data-theme="light"] .home-base .home-bg {
+        animation: sky-drift 40s ease-in-out infinite;
+      }
+      @keyframes sky-drift {
+        0%, 100% { transform: scale(1.02) translate3d(-4px, 0, 0); }
+        50%      { transform: scale(1.02) translate3d(4px, 0, 0); }
+      }
+
+      /* Circular theme reveal; the clip-path itself is animated in JS from the
+         toggle's position. Without these the browser cross-fades instead. */
+      ::view-transition-old(root),
+      ::view-transition-new(root) {
+        animation: none;
+        mix-blend-mode: normal;
+      }
+      ::view-transition-old(root) { z-index: 0; }
+      ::view-transition-new(root) { z-index: 1; }
+
+      /* SECTION PANELS (Home, Train, ... one per section, only one visible) */
+      .section-panel {
+        right: clamp(18px, 1.95vw, 28px);
+        top: calc(clamp(18px, 3.1vh, 28px) + 58px);
+        bottom: clamp(18px, 3vh, 28px);
+        width: min(640px, 46vw);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+      }
+      .section-panel { display: none; }
+      .section-panel.is-active { display: block; }
+      .panel-head {
+        margin-bottom: 14px;
+      }
+      .panel-eyebrow {
+        font-size: 11px;
+        letter-spacing: .17em;
+        text-transform: uppercase;
+        color: var(--ink);
+        opacity: .75;
+        text-shadow: var(--ink-shadow);
+      }
+      .panel-name {
+        margin: 6px 0 0;
+        font-family: Aalto, 'Arial Narrow', sans-serif;
+        font-size: clamp(30px, 3.1vw, 44px);
+        font-weight: 400;
+        line-height: 1;
+        letter-spacing: .01em;
+        text-transform: uppercase;
+        color: var(--ink);
+        text-shadow: var(--ink-shadow);
+      }
+      .panel-name .dot { color: var(--accent); }
+
+      .panel-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        padding-bottom: 4px;
+      }
+      .card {
+        position: relative;
+        padding: 16px 18px 18px;
+        border-radius: 4px;
+        border: 1px solid var(--card-border);
+        background: var(--card-bg);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+        color: var(--card-ink);
+        overflow: hidden;
+        will-change: transform;
+      }
+      .card.is-wide { grid-column: 1 / -1; }
+      /* highlight tracks the pointer through --mx / --my */
+      .card::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity .35s ease;
+        background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 0%), var(--highlight), transparent 62%);
+      }
+      .card.is-lit::after { opacity: 1; }
+
+      .card-label {
+        font-size: 10.5px;
+        letter-spacing: .17em;
+        text-transform: uppercase;
+        color: var(--card-dim);
+      }
+      .card-big {
+        margin: 10px 0 0;
+        font-family: Aalto, 'Arial Narrow', sans-serif;
+        font-size: 38px;
+        font-weight: 400;
+        line-height: .96;
+        text-transform: uppercase;
+      }
+      .card-big.is-small { font-size: 27px; }
+      .card-note { margin-top: 10px; font-size: 14px; }
+      .card-sub { margin-top: 6px; font-size: 13px; color: var(--card-dim); }
+      .card-icon {
+        position: absolute;
+        top: 16px;
+        right: 18px;
+        width: 22px;
+        height: 22px;
+        color: var(--accent);
+      }
+
+      .stat-row { display: flex; align-items: baseline; gap: 9px; margin-top: 10px; }
+      .stat-num {
+        font-family: Aalto, 'Arial Narrow', sans-serif;
+        font-size: 46px;
+        line-height: .9;
+      }
+      .stat-of { font-size: 13px; color: var(--card-dim); }
+
+      .bar {
+        margin-top: 14px;
+        height: 3px;
+        border-radius: 2px;
+        background: var(--bar-track);
+        overflow: hidden;
+      }
+      .bar.is-green { background: #6FBF8B; }
+      .bar > i {
+        display: block;
+        height: 100%;
+        width: 0;
+        background: var(--accent);
+        transition: width 1.1s cubic-bezier(.16, 1, .3, 1);
+      }
+
+      .btn-accent {
+        margin-top: 16px;
+        padding: 11px 16px;
+        border: 0;
+        border-radius: 3px;
+        background: var(--accent);
+        color: #fff;
+        font-family: inherit;
+        font-size: 11.5px;
+        font-weight: 700;
+        letter-spacing: .13em;
+        text-transform: uppercase;
+        cursor: pointer;
+      }
+      .btn-accent.is-full { width: 100%; }
+      .btn-accent.is-done { background: #2E7D4F; }
+      .link-accent {
+        margin-top: 14px;
+        padding: 0;
+        border: 0;
+        background: none;
+        color: var(--accent);
+        font-family: inherit;
+        font-size: 11.5px;
+        font-weight: 700;
+        letter-spacing: .13em;
+        text-transform: uppercase;
+        cursor: pointer;
+      }
+
+      .seg-row { margin-top: 14px; }
+      .seg-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 6px;
+        font-size: 13px;
+      }
+      .seg-read { font-size: 12px; color: var(--card-dim); }
+      .segs {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 6px;
+        outline: none;
+      }
+      .segs:focus-visible { box-shadow: 0 0 0 2px var(--accent); border-radius: 4px; }
+      .seg {
+        height: 26px;
+        border-radius: 3px;
+        border: 1px solid var(--seg-border);
+        background: var(--seg-bg);
+        transition: background .18s ease, border-color .18s ease;
+      }
+      .seg.is-on {
+        border-color: var(--accent);
+        background: rgba(255, 74, 15, .22);
+      }
+      .seg.is-preview {
+        border-color: rgba(255, 74, 15, .55);
+      }
+
+      /* NIGHT LIFE (dark theme only) */
+      .home-stars, .home-flies {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+      :root[data-theme="light"] .home-stars,
+      :root[data-theme="light"] .home-flies {
+        display: none;
+      }
+      .star {
+        position: absolute;
+        width: 2px;
+        height: 2px;
+        border-radius: 50%;
+        background: #fff;
+        will-change: opacity;
+        animation: star-pulse linear infinite;
+      }
+      @keyframes star-pulse {
+        0%, 100% { opacity: .15; }
+        50%      { opacity: .9; }
+      }
+      .fly {
+        position: absolute;
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background: #FFE9A8;
+        box-shadow: 0 0 7px 2px rgba(255, 216, 120, .75);
+        will-change: transform, opacity;
+        animation: fly-drift ease-in-out infinite alternate, fly-glow ease-in-out infinite;
+      }
+      @keyframes fly-drift {
+        from { transform: translate3d(0, 0, 0); }
+        to   { transform: translate3d(var(--dx), var(--dy), 0); }
+      }
+      @keyframes fly-glow {
+        0%, 100% { opacity: .25; }
+        50%      { opacity: 1; }
+      }
+
+      [data-magnetic] {
+        will-change: transform;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .home-grass-inner, .home-base .home-bg, .star, .fly { animation: none !important; }
+        .card.ex, .toast, .macro-bar > i { transition: none !important; }
+        .log-row.is-new { animation: none !important; }
+        .dots span { animation: none !important; }
+        #coach-screen.is-booting { animation: none !important; }
+      }
+
+      /* SIDEBAR */
+      .planet-list {
+        left: clamp(18px, 1.95vw, 28px);
+        top: 54%;
+        transform: translateY(-43%);
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        font-size: 16px;
+      }
+      .planet-item {
+        display: flex;
+        align-items: center;
+        min-height: 20px;
+        color: var(--ink-dim);
+        text-shadow: var(--ink-shadow);
+        transition: color 0.3s ease, transform 0.2s ease;
+        background: transparent;
+        border: 0;
+        padding: 0;
+        margin: 0;
+        font-family: inherit;
+        font-size: 16px;
+        text-align: left;
+        cursor: pointer;
+      }
+      .planet-item:hover {
+        color: #fff;
+        transform: translateX(3px);
+      }
+      .planet-item.active {
+        color: var(--ink);
+        font-size: 18px;
+        font-weight: 700;
+        gap: 8px;
+      }
+      .planet-item.active:before {
+        content: '';
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #fff;
+        display: inline-block;
+        flex-shrink: 0;
+      }
+
+      /* PORTAL */
+      .portal-wrap {
+        left: clamp(18px, 1.95vw, 28px);
+        top: clamp(18px, 3.1vh, 28px);
+        width: min(220px, 18vw);
+        transform: none;
+        perspective: none;
+      }
+      .portal-heading {
+        color: var(--ink);
+        text-shadow: var(--ink-shadow);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+        font-size: 16px;
+        opacity: 0;
+      }
+      .portal-heading strong {
+        font-size: 18px;
+        margin-left: 8px;
+      }
+      .portal {
+        position: relative;
+        display: block;
+        width: 100%;
+        aspect-ratio: 320 / 350;
+        padding: 0;
+        overflow: visible;
+        border: 0;
+        border-radius: 60px;
+        background: transparent;
+        cursor: pointer;
+        box-shadow: none;
+        transform: none !important;
+      }
+      .portal video, .portal img {
+        visibility: hidden;
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        pointer-events: none;
+      }
+      .portal-canvas {
+        position: fixed;
+        inset: 0;
+        z-index: 3;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      }
+
+      /* CONTENT */
+      .planet-content {
+        left: clamp(28px, 4vw, 58px);
+        right: clamp(28px, 3vw, 44px);
+        bottom: clamp(24px, 3vh, 30px);
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 40px;
+      }
+      .planet-content h1 {
+        font-family: Aalto, 'Arial Narrow', sans-serif;
+        font-size: clamp(56px, 15vw, 220px);
+        font-weight: 400;
+        line-height: .72;
+        white-space: nowrap;
+        margin: 0 0 -.04em;
+        letter-spacing: 0;
+        transform: translateX(-32px);
+        opacity: 0;
+        color: var(--ink);
+        text-shadow: var(--ink-shadow);
+      }
+
+      /* MISC */
+      .transition-layer {
+        display: none;
+      }
+      .scene-canvas {
+        display: none;
+      }
+      .loading {
+        position: absolute;
+        z-index: 12;
+        left: 50%;
+        bottom: 30px;
+        transform: translateX(-50%);
+        opacity: 0;
+        font-size: 12px;
+        letter-spacing: .14em;
+        text-transform: uppercase;
+        transition: opacity .2s;
+        pointer-events: none;
+      }
+      .experience.is-loading .loading {
+        opacity: .8;
+      }
+      .experience.is-transitioning .header,
+      .experience.is-transitioning .planet-list {
+        opacity: 1;
+        filter: none;
+        pointer-events: auto;
+      }
+      .experience.is-transitioning .shade {
+        opacity: 1;
+      }
+      .experience.is-committing .background {
+        transition: none !important;
+      }
+
+      /* PRELOADER */
+      .preloader {
+        position: absolute;
+        inset: 0;
+        z-index: 20;
+        background: #000;
+        overflow: hidden;
+        transition: opacity .7s ease;
+      }
+      .preloader video {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .preloader-shade {
+        position: absolute;
+        inset: auto 0 0;
+        height: 35%;
+        background: linear-gradient(to bottom, transparent, #000);
+      }
+      /* Once the intro clip is done it must stop covering .backgrounds — it sits
+         above them in DOM order, so it would pin the intro's last frame forever. */
+      .preloader.is-background {
+        z-index: 0;
+        opacity: 0;
+        pointer-events: none;
+      }
+      .preloader.is-background .preloader-shade {
+        opacity: 0;
+      }
+      .preloader-count {
+        position: fixed;
+        z-index: 22;
+        left: 50%;
+        bottom: clamp(22px, 3.1vh, 28px);
+        display: flex;
+        align-items: flex-end;
+        gap: 4px;
+        transform: translateX(-50%);
+        font-family: 'SF Pro', Arial, sans-serif;
+        line-height: 1;
+      }
+      .preloader-count > span:first-child {
+        font-family: 'SF Pro Thin', 'SF Pro', Arial, sans-serif;
+        font-size: 64px;
+        font-weight: 100;
+      }
+      .preloader-count .percent {
+        font-size: 24px;
+        padding-bottom: 4px;
+      }
+      .preloader-count.is-leaving {
+        animation: preload-count-out .75s cubic-bezier(.22, 1, .36, 1) both;
+      }
+      @keyframes preload-count-out {
+        to {
+          opacity: 0;
+          filter: blur(7px);
+          transform: translate(-50%, -34px);
+        }
+      }
+      body:not(.preload-complete) .custom-cursor {
+        opacity: 0 !important;
+      }
+
+      /* CUSTOM CURSOR */
+      .custom-cursor {
+        display: block;
+        position: fixed;
+        left: 0;
+        top: 0;
+        z-index: 100;
+        width: 1px;
+        height: 1px;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity .2s ease;
+      }
+      .custom-cursor.is-visible {
+        opacity: 1;
+      }
+      .cursor-dot, .cursor-orbit {
+        position: absolute;
+        left: 0;
+        top: 0;
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+      }
+      .cursor-dot {
+        width: 12px;
+        height: 12px;
+        background: #fff;
+      }
+      .cursor-orbit {
+        width: 36px;
+        height: 36px;
+        border: 1px solid #fff;
+        background: rgba(255, 255, 255, .4);
+        transition: transform .3s cubic-bezier(.22, 1, .36, 1);
+      }
+      .custom-cursor.is-enter .cursor-orbit {
+        transform: translate(-50%, -50%) scale(1.16);
+      }
+      .cursor-label {
+        position: absolute;
+        top: 26px;
+        left: 0;
+        transform: translateX(-50%) translateY(-4px);
+        font: 16px/1.2 'SF Pro', Arial, sans-serif;
+        white-space: nowrap;
+        opacity: 0;
+        transition: opacity .2s ease, transform .3s cubic-bezier(.22, 1, .36, 1);
+      }
+      .custom-cursor.is-enter .cursor-label {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+
+      /* TRAIN PANEL */
+      .train-head { display: flex; align-items: flex-start; gap: 16px; }
+      .train-head > div { flex: 1 1 auto; min-width: 0; }
+      .panel-title {
+        margin: 6px 0 0;
+        font-family: Aalto, 'Archivo Narrow', 'Roboto Condensed', 'Oswald', 'Arial Narrow', sans-serif;
+        font-size: clamp(26px, 2.6vw, 38px);
+        font-weight: 400;
+        line-height: 1;
+        letter-spacing: .01em;
+        text-transform: uppercase;
+        color: var(--ink);
+        text-shadow: var(--ink-shadow);
+      }
+      .btn-outline {
+        flex: 0 0 auto;
+        padding: 9px 13px;
+        border: 1px solid var(--card-border);
+        border-radius: 3px;
+        background: var(--card-bg);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+        color: var(--card-ink);
+        font-family: inherit;
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: .13em;
+        text-transform: uppercase;
+        cursor: pointer;
+        transition: border-color .25s ease, color .25s ease;
+      }
+      .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+      /* the per-exercise swap button reads as a sentence, not a label */
+      .ex-head .btn-outline {
+        padding: 7px 11px;
+        font-size: 12px;
+        font-weight: 400;
+        letter-spacing: .01em;
+        text-transform: none;
+      }
+      .panel-rule {
+        height: 1px;
+        margin: 16px 0;
+        background: var(--card-border);
+      }
+      .train-meta {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        font-size: 13px;
+        color: var(--ink);
+        opacity: .86;
+        text-shadow: var(--ink-shadow);
+      }
+      .chip {
+        padding: 5px 9px;
+        border: 1px solid var(--card-border);
+        border-radius: 3px;
+        background: var(--card-bg);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: .13em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+      .train-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 16px;
+      }
+      .tab {
+        padding: 8px 15px;
+        border: 1px solid var(--card-border);
+        border-radius: 999px;
+        background: var(--card-bg);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+        color: var(--card-ink);
+        font-family: inherit;
+        font-size: 12.5px;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: border-color .25s ease, color .25s ease;
+      }
+      .tab.is-active { border-color: var(--accent); color: var(--accent); }
+
+      .train-status {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin: 16px 0 12px;
+        font-size: 13px;
+        color: var(--ink);
+        text-shadow: var(--ink-shadow);
+      }
+      .btn-accent.is-small {
+        margin-top: 0;
+        padding: 8px 12px;
+        font-size: 10px;
+      }
+      /* dim until the first set is ticked; still focusable so the reason is
+         announced rather than the control just vanishing */
+      .btn-accent[disabled] {
+        opacity: .42;
+        cursor: not-allowed;
+      }
+
+      .ex-list { display: grid; gap: 12px; }
+      .card.ex { padding: 16px 18px 14px; transition: opacity .16s ease; }
+      .card.ex.is-swapping { opacity: 0; }
+      .ex-head { display: flex; align-items: flex-start; gap: 12px; }
+      .ex-head > div { flex: 1 1 auto; min-width: 0; }
+      .ex-name {
+        margin: 0;
+        font-family: Aalto, 'Archivo Narrow', 'Roboto Condensed', 'Oswald', 'Arial Narrow', sans-serif;
+        font-size: 19px;
+        font-weight: 400;
+        line-height: 1;
+        letter-spacing: .02em;
+        text-transform: uppercase;
+      }
+      .ex-scheme { margin-top: 7px; font-size: 13px; font-weight: 600; }
+      .ex-steps {
+        margin: 0;
+        padding: 0 0 0 2px;
+        list-style: none;
+        counter-reset: step;
+        font-size: 12.5px;
+        color: var(--card-dim);
+      }
+      .ex-steps li { counter-increment: step; margin-top: 5px; }
+      .ex-steps li::before { content: counter(step) '. '; }
+
+      .set-row {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin-top: 8px;
+        transition: opacity .25s ease;
+      }
+      .set-row.is-done { opacity: .5; }
+      .set-label {
+        flex: 0 0 42px;
+        font-size: 12px;
+        color: var(--card-dim);
+      }
+      .set-row input {
+        width: 62px;
+        padding: 7px 9px;
+        border: 1px solid var(--seg-border);
+        border-radius: 3px;
+        background: var(--seg-bg);
+        color: var(--card-ink);
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .set-row input::placeholder { font-weight: 400; color: var(--card-dim); }
+      .set-row input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+      .set-unit { font-size: 11.5px; color: var(--card-dim); }
+      .set-check {
+        margin-left: auto;
+        width: 30px;
+        height: 30px;
+        display: grid;
+        place-items: center;
+        border: 1px solid var(--card-border);
+        border-radius: 3px;
+        background: transparent;
+        color: var(--card-dim);
+        cursor: pointer;
+        transition: background .2s ease, border-color .2s ease, color .2s ease;
+      }
+      .set-check svg { width: 15px; height: 15px; }
+      .set-check.is-on {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+
+      .rest-chip {
+        margin-top: 12px;
+        padding: 7px 11px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid var(--accent);
+        border-radius: 999px;
+        background: transparent;
+        color: var(--accent);
+        font-family: inherit;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+        cursor: pointer;
+      }
+
+      .train-finish { margin: 16px 0 4px; }
+      .btn-accent.is-big {
+        margin-top: 0;
+        width: 100%;
+        padding: 15px 18px;
+        font-size: 12.5px;
+      }
+
+      /* EAT PANEL */
+      .eat-head { display: flex; align-items: flex-start; gap: 16px; }
+      .eat-head > div { flex: 1 1 auto; min-width: 0; }
+      .eat-head .chip { flex: 0 0 auto; margin-top: 8px; cursor: pointer; }
+      .eat-head .chip:hover { border-color: var(--accent); color: var(--accent); }
+
+      .card.targets { position: relative; }
+      .targets-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .link-macro {
+        border: 0;
+        padding: 0;
+        background: none;
+        color: var(--accent);
+        font-family: inherit;
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: .13em;
+        text-transform: uppercase;
+        cursor: pointer;
+      }
+      .macro-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+        margin-top: 16px;
+      }
+      .macro-top {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 6px;
+        font-size: 12.5px;
+      }
+      .macro-name { font-weight: 700; }
+      .macro-read { color: var(--card-dim); font-size: 11.5px; white-space: nowrap; }
+      /* over target: the number calls it out, the bar stays capped at 100% */
+      .macro-read.is-over { color: var(--accent); }
+      .macro-bar {
+        margin-top: 9px;
+        height: 3px;
+        border-radius: 2px;
+        overflow: hidden;
+        /* the track is the macro's own colour, faded: at 0 the row still reads
+           as four coloured lines the way the reference does */
+        background: color-mix(in srgb, var(--c) 34%, transparent);
+      }
+      .macro-bar > i {
+        display: block;
+        height: 100%;
+        width: 0;
+        background: var(--c);
+        transition: width 1.1s cubic-bezier(.16, 1, .3, 1);
+      }
+
+      .derived-pop {
+        position: absolute;
+        z-index: 2;
+        right: 18px;
+        top: 44px;
+        width: min(300px, calc(100% - 36px));
+        padding: 13px 15px;
+        border: 1px solid var(--card-border);
+        border-radius: 3px;
+        background: var(--solid-bg);
+        color: var(--solid-ink);
+        font-size: 12.5px;
+        line-height: 1.45;
+      }
+      .derived-pop button {
+        margin-top: 10px;
+        border: 0;
+        padding: 0;
+        background: none;
+        color: var(--accent);
+        font-family: inherit;
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: .13em;
+        text-transform: uppercase;
+        cursor: pointer;
+      }
+
+      /* text tabs with an underline, not the pills Train uses */
+      .eat-tabs {
+        display: flex;
+        gap: 22px;
+        margin: 18px 0 0;
+        border-bottom: 1px solid var(--card-border);
+      }
+      .tab-text {
+        position: relative;
+        border: 0;
+        padding: 0 0 9px;
+        background: none;
+        color: var(--ink);
+        opacity: .6;
+        font-family: inherit;
+        font-size: 11.5px;
+        font-weight: 700;
+        letter-spacing: .13em;
+        text-transform: uppercase;
+        cursor: pointer;
+        text-shadow: var(--ink-shadow);
+        transition: opacity .25s ease, color .25s ease;
+      }
+      .tab-text:hover { opacity: 1; }
+      .tab-text.is-active { opacity: 1; color: var(--accent); }
+      .tab-text.is-active::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: -1px;
+        height: 2px;
+        background: var(--accent);
+      }
+      .eat-body { margin-top: 14px; display: grid; gap: 12px; }
+
+      .empty-card { padding: 34px 18px; text-align: center; }
+      .empty-title { font-size: 14px; }
+      .empty-sub { margin-top: 7px; font-size: 12.5px; color: var(--card-dim); }
+
+      .meal-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 4px;
+      }
+      .meal-name {
+        font-size: 10.5px;
+        letter-spacing: .17em;
+        text-transform: uppercase;
+        color: var(--card-dim);
+      }
+      .meal-kcal { font-size: 11.5px; color: var(--card-dim); }
+
+      .log-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 0;
+        border-top: 1px solid var(--card-border);
+      }
+      .log-row:first-of-type { border-top: 0; }
+      .log-row > div { flex: 1 1 auto; min-width: 0; }
+      .log-name { font-size: 13.5px; }
+      .log-serve { margin-top: 3px; font-size: 11.5px; color: var(--card-dim); }
+      .log-kcal { flex: 0 0 auto; font-size: 13px; font-weight: 700; }
+      .log-macros { flex: 0 0 auto; font-size: 11.5px; color: var(--card-dim); white-space: nowrap; }
+      .icon-btn {
+        flex: 0 0 auto;
+        width: 26px;
+        height: 26px;
+        display: grid;
+        place-items: center;
+        border: 1px solid var(--card-border);
+        border-radius: 3px;
+        background: transparent;
+        color: var(--card-dim);
+        font-family: inherit;
+        font-size: 15px;
+        line-height: 1;
+        cursor: pointer;
+        transition: border-color .2s ease, color .2s ease;
+      }
+      .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+      /* a freshly added row announces itself, then settles */
+      .log-row.is-new { animation: log-in 1.6s ease both; }
+      @keyframes log-in {
+        0%   { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+        100% { background: transparent; }
+      }
+
+      .add-controls { display: flex; gap: 9px; margin-bottom: 12px; }
+      .add-controls input, .add-controls select {
+        padding: 9px 11px;
+        border: 1px solid var(--seg-border);
+        border-radius: 3px;
+        background: var(--seg-bg);
+        color: var(--card-ink);
+        font-family: inherit;
+        font-size: 13px;
+      }
+      .add-controls input { flex: 1 1 auto; min-width: 0; }
+      .add-controls select { flex: 0 0 auto; }
+      .add-controls input:focus-visible,
+      .add-controls select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+      .food-row {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 9px 0;
+        border-top: 1px solid var(--card-border);
+      }
+      .food-row:first-of-type { border-top: 0; }
+      .food-row > div:first-child { flex: 1 1 auto; min-width: 0; }
+      .food-name { font-size: 13.5px; }
+      .food-macros { margin-top: 3px; font-size: 11.5px; color: var(--card-dim); }
+      .stepper {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        border: 1px solid var(--seg-border);
+        border-radius: 3px;
+        background: var(--seg-bg);
+      }
+      .stepper button {
+        width: 26px;
+        height: 26px;
+        border: 0;
+        background: none;
+        color: var(--card-ink);
+        font-family: inherit;
+        font-size: 14px;
+        line-height: 1;
+        cursor: pointer;
+      }
+      .stepper button:hover { color: var(--accent); }
+      .stepper span {
+        min-width: 30px;
+        text-align: center;
+        font-size: 12.5px;
+        font-weight: 700;
+      }
+      .food-empty { padding: 18px 0; font-size: 12.5px; color: var(--card-dim); }
+
+      .plan-intro { font-size: 12.5px; color: var(--card-dim); margin-bottom: 12px; }
+      .plan-total {
+        margin-top: 12px;
+        padding-top: 11px;
+        border-top: 1px solid var(--card-border);
+        font-size: 12.5px;
+      }
+
+      /* PROGRESS PANEL */
+      .prog-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .prog-big {
+        display: flex;
+        align-items: baseline;
+        gap: 9px;
+        margin-top: 12px;
+      }
+      .prog-num {
+        font-family: Aalto, 'Archivo Narrow', 'Roboto Condensed', 'Oswald', 'Arial Narrow', sans-serif;
+        font-size: 46px;
+        line-height: .9;
+      }
+      .prog-unit { font-size: 13px; color: var(--card-dim); }
+      .prog-note { margin-top: 12px; font-size: 11.5px; color: var(--card-dim); }
+      .prog-body { margin-top: 10px; font-size: 13px; line-height: 1.5; }
+      .prog-body .accent { color: var(--accent); }
+
+      .weight-row { display: flex; gap: 9px; margin-top: 12px; }
+      .weight-row input {
+        flex: 1 1 auto;
+        min-width: 0;
+        padding: 9px 11px;
+        border: 1px solid var(--seg-border);
+        border-radius: 3px;
+        background: var(--seg-bg);
+        color: var(--card-ink);
+        font-family: inherit;
+        font-size: 13px;
+      }
+      .weight-row input::placeholder { color: var(--card-dim); }
+      .weight-row input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+      .spark { display: block; margin-top: 12px; width: 100%; height: 38px; overflow: visible; }
+      .spark polyline { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+      .spark circle { fill: var(--accent); }
+      .spark line { stroke: var(--card-border); stroke-width: 1; }
+      .weight-delta { font-size: 12.5px; color: var(--card-dim); margin-top: 6px; }
+
+      .prog-section {
+        margin: 22px 0 0;
+        font-family: Aalto, 'Archivo Narrow', 'Roboto Condensed', 'Oswald', 'Arial Narrow', sans-serif;
+        font-size: clamp(20px, 2vw, 27px);
+        font-weight: 400;
+        line-height: 1;
+        letter-spacing: .01em;
+        text-transform: uppercase;
+        color: var(--ink);
+        text-shadow: var(--ink-shadow);
+      }
+
+      .change-list { display: grid; gap: 16px; }
+      .change {
+        position: relative;
+        padding-left: 14px;
+      }
+      .change::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 2px;
+        bottom: 2px;
+        width: 2px;
+        background: var(--accent);
+      }
+      .change-head {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 9px;
+      }
+      .change-title {
+        margin: 0;
+        font-family: Aalto, 'Archivo Narrow', 'Roboto Condensed', 'Oswald', 'Arial Narrow', sans-serif;
+        font-size: 15px;
+        font-weight: 400;
+        letter-spacing: .02em;
+        text-transform: uppercase;
+        color: var(--ink);
+        text-shadow: var(--ink-shadow);
+      }
+      .badge {
+        padding: 3px 7px;
+        border: 1px solid var(--accent);
+        border-radius: 3px;
+        color: var(--accent);
+        font-size: 9.5px;
+        font-weight: 700;
+        letter-spacing: .13em;
+        text-transform: uppercase;
+      }
+      .badge.is-accepted { border-color: #6FBF8B; color: #6FBF8B; }
+      .badge.is-dismissed {
+        border-color: var(--card-border);
+        color: var(--ink);
+        opacity: .55;
+      }
+      .change-date {
+        font-size: 11.5px;
+        color: var(--ink);
+        opacity: .6;
+        text-shadow: var(--ink-shadow);
+      }
+      .change-desc {
+        margin-top: 8px;
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--ink);
+        text-shadow: var(--ink-shadow);
+      }
+      .change-basis {
+        margin-top: 11px;
+        font-size: 10px;
+        letter-spacing: .17em;
+        text-transform: uppercase;
+        color: var(--ink);
+        opacity: .55;
+        text-shadow: var(--ink-shadow);
+      }
+      .change-basis + ul {
+        margin: 6px 0 0;
+        padding: 0;
+        list-style: none;
+        font-size: 11.5px;
+        color: var(--ink);
+        opacity: .6;
+        text-shadow: var(--ink-shadow);
+      }
+      .change-basis + ul li { margin-top: 3px; }
+      .change-basis + ul li::before { content: '\00b7  '; }
+      .change-actions { display: flex; gap: 8px; margin-top: 12px; }
+      .btn-mini {
+        padding: 6px 12px;
+        border: 1px solid var(--card-border);
+        border-radius: 3px;
+        background: var(--card-bg);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+        color: var(--card-ink);
+        font-family: inherit;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: .13em;
+        text-transform: uppercase;
+        cursor: pointer;
+        transition: border-color .25s ease, color .25s ease;
+      }
+      .btn-mini:hover { border-color: var(--accent); color: var(--accent); }
+      .btn-mini.is-accept:hover { border-color: #6FBF8B; color: #6FBF8B; }
+
+      /* COACH: the monitor screen */
+      #coach-screen {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 0;
+        height: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        background: #041b23;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .5s ease;
+      }
+      :root[data-theme="light"] #coach-screen { background: #05222c; }
+      #coach-screen.is-on {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      /* the 120ms mains-flicker as the panel wakes */
+      #coach-screen.is-booting { animation: screen-boot .42s steps(1, end) both; }
+      @keyframes screen-boot {
+        0%   { filter: brightness(0); }
+        26%  { filter: brightness(0); }
+        32%  { filter: brightness(1.9); }
+        38%  { filter: brightness(.25); }
+        44%  { filter: brightness(1.35); }
+        100% { filter: brightness(1); }
+      }
+      /* the glass catches the window behind it */
+      .screen-glare {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: linear-gradient(142deg, rgba(255, 255, 255, .11) 0%, rgba(255, 255, 255, .03) 26%, transparent 52%);
+      }
+      .screen-vignette {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        box-shadow: inset 0 0 44px rgba(0, 0, 0, .55), inset 0 0 8px rgba(0, 0, 0, .5);
+      }
+      /* the UI is laid out at a fixed size and scaled to whatever the bezel is */
+      .screen-fit {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 800px;
+        height: 480px;
+        transform-origin: 0 0;
+      }
+      /* Coach has no right-hand panel on a wide viewport, and the desk should not
+         be covered by the section title either. */
+      @media (min-width: 900px) {
+        .experience[data-planet="progress"] .planet-content { display: none; }
+        #coach-panel { display: none !important; }
+      }
+      @media (max-width: 899px) {
+        #coach-screen { display: none; }
+      }
+
+      /* COACH CHAT (same markup in the screen and in the mobile panel) */
+      .coach-ui {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        padding: 20px 22px 16px;
+        color: #E8F2F4;
+        opacity: 0;
+        transition: opacity .45s ease;
+      }
+      .coach-ui.is-in { opacity: 1; }
+      .coach-head { display: flex; align-items: flex-start; gap: 12px; }
+      .coach-head > div { flex: 1 1 auto; min-width: 0; }
+      .coach-eyebrow {
+        font-size: 10px;
+        letter-spacing: .17em;
+        text-transform: uppercase;
+        opacity: .6;
+      }
+      .coach-title {
+        margin: 5px 0 0;
+        font-family: Aalto, 'Archivo Narrow', 'Roboto Condensed', 'Oswald', 'Arial Narrow', sans-serif;
+        font-size: 30px;
+        font-weight: 400;
+        line-height: 1;
+        letter-spacing: .01em;
+        text-transform: uppercase;
+      }
+      .coach-clear {
+        flex: 0 0 auto;
+        border: 0;
+        padding: 0;
+        background: none;
+        color: var(--accent);
+        font-family: inherit;
+        font-size: 9.5px;
+        font-weight: 700;
+        letter-spacing: .13em;
+        text-transform: uppercase;
+        cursor: pointer;
+      }
+      .coach-rule { height: 1px; margin: 13px 0; background: rgba(232, 242, 244, .14); }
+
+      .coach-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+      .qa {
+        padding: 6px 11px;
+        border: 1px solid rgba(232, 242, 244, .22);
+        border-radius: 999px;
+        background: rgba(232, 242, 244, .04);
+        color: inherit;
+        font-family: inherit;
+        font-size: 11.5px;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: border-color .2s ease, color .2s ease;
+      }
+      .qa:hover { border-color: var(--accent); color: var(--accent); }
+
+      .coach-log {
+        flex: 1 1 auto;
+        min-height: 0;
+        margin: 13px 0 0;
+        padding-right: 6px;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .bubble {
+        max-width: 74%;
+        padding: 11px 13px;
+        border: 1px solid rgba(232, 242, 244, .16);
+        border-radius: 4px;
+        background: rgba(232, 242, 244, .05);
+        font-size: 12.5px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+      }
+      .bubble.is-user {
+        align-self: flex-end;
+        border-color: rgba(232, 242, 244, .22);
+        background: rgba(232, 242, 244, .1);
+      }
+      .bubble.is-coach { align-self: flex-start; }
+      .bubble .accent { color: var(--accent); }
+      .bubble-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+      .bubble-actions button {
+        padding: 5px 10px;
+        border: 1px solid var(--accent);
+        border-radius: 3px;
+        background: none;
+        color: var(--accent);
+        font-family: inherit;
+        font-size: 9.5px;
+        font-weight: 700;
+        letter-spacing: .13em;
+        text-transform: uppercase;
+        cursor: pointer;
+      }
+      .bubble-actions button:hover { background: var(--accent); color: #fff; }
+      .bubble-actions button[disabled] { opacity: .45; cursor: default; }
+
+      .dots { display: inline-flex; gap: 4px; align-items: center; height: 10px; }
+      .dots span {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: currentColor;
+        opacity: .35;
+        animation: dot-bob 1.1s ease-in-out infinite;
+      }
+      .dots span:nth-child(2) { animation-delay: .16s; }
+      .dots span:nth-child(3) { animation-delay: .32s; }
+      @keyframes dot-bob {
+        0%, 100% { opacity: .25; transform: translateY(0); }
+        50%      { opacity: .9;  transform: translateY(-3px); }
+      }
+
+      .coach-form { display: flex; gap: 8px; margin-top: 12px; }
+      .coach-form input {
+        flex: 1 1 auto;
+        min-width: 0;
+        padding: 10px 12px;
+        border: 1px solid rgba(232, 242, 244, .2);
+        border-radius: 3px;
+        background: rgba(232, 242, 244, .05);
+        color: inherit;
+        font-family: inherit;
+        font-size: 12.5px;
+      }
+      .coach-form input::placeholder { color: rgba(232, 242, 244, .45); }
+      .coach-form input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+      .coach-send {
+        flex: 0 0 auto;
+        width: 42px;
+        border: 0;
+        border-radius: 3px;
+        background: var(--accent);
+        color: #fff;
+        font-family: inherit;
+        font-size: 15px;
+        cursor: pointer;
+        transition: opacity .2s ease;
+      }
+      .coach-send[disabled] { opacity: .4; cursor: not-allowed; }
+      .coach-foot { margin-top: 9px; font-size: 9.5px; line-height: 1.45; opacity: .5; }
+
+      /* only shown when the live coach could not be reached */
+      .coach-offline {
+        position: absolute;
+        right: 12px;
+        bottom: 10px;
+        display: none;
+        align-items: center;
+        gap: 5px;
+        font-size: 9px;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+        opacity: .45;
+      }
+      .coach-offline.is-on { display: flex; }
+      .coach-offline::before {
+        content: '';
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+
+      /* in the mobile panel the chat is a glass card, not a screen */
+      #coach-panel .coach-ui {
+        position: relative;
+        inset: auto;
+        opacity: 1;
+        height: 100%;
+        padding: 0;
+        color: var(--ink);
+        text-shadow: var(--ink-shadow);
+      }
+      #coach-panel .coach-title { font-size: clamp(26px, 7vw, 34px); }
+      #coach-panel .coach-rule { background: var(--card-border); }
+      #coach-panel .qa {
+        border-color: var(--card-border);
+        background: var(--card-bg);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+        color: var(--card-ink);
+        text-shadow: none;
+      }
+      #coach-panel .bubble {
+        border-color: var(--card-border);
+        background: var(--card-bg);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+        color: var(--card-ink);
+        text-shadow: none;
+        max-width: 86%;
+      }
+      #coach-panel .coach-form input {
+        border-color: var(--seg-border);
+        background: var(--seg-bg);
+        color: var(--card-ink);
+        text-shadow: none;
+      }
+      #coach-panel .coach-log { max-height: 52vh; }
+
+      /* TOAST */
+      .toast {
+        position: absolute;
+        z-index: 9;
+        left: 50%;
+        bottom: 34px;
+        transform: translate(-50%, 14px);
+        padding: 11px 16px;
+        border: 1px solid var(--card-border);
+        border-radius: 3px;
+        background: var(--solid-bg);
+        color: var(--solid-ink);
+        font-size: 12.5px;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .3s ease, transform .3s ease;
+      }
+      .toast.is-on { opacity: 1; transform: translate(-50%, 0); }
+
+      /* ENTRANCE / SWITCH ANIMATIONS */
+      body:not(.intro-ready) .header,
+      body:not(.intro-ready) .planet-list,
+      body:not(.intro-ready) .planet-content h1,
+      body:not(.intro-ready) .section-panel {
+        opacity: 0;
+      }
+      .intro-ready .header {
+        animation: reveal-down .9s cubic-bezier(.22, 1, .36, 1) .1s both;
+      }
+      .intro-ready .planet-list {
+        animation: reveal-side .9s cubic-bezier(.22, 1, .36, 1) .65s both;
+      }
+      .content-revealing h1 {
+        animation: title-rise 1.05s cubic-bezier(.16, 1, .3, 1) both;
+      }
+      .content-revealing .section-panel {
+        animation: panel-rise .95s cubic-bezier(.16, 1, .3, 1) .15s both;
+      }
+      @keyframes panel-rise {
+        from { opacity: 0; filter: blur(9px); transform: translateY(26px); }
+        to   { opacity: 1; filter: blur(0); transform: translateY(0); }
+      }
+
+      .mask-revealing .portal-heading {
+        animation: portal-caption .85s cubic-bezier(.22, 1, .36, 1) both;
+      }
+      .planet-list.is-switching .planet-item {
+        animation: menu-row .58s cubic-bezier(.22, 1, .36, 1) both;
+      }
+      .planet-list.is-switching .planet-item:nth-child(1) { animation-delay: .02s; }
+      .planet-list.is-switching .planet-item:nth-child(2) { animation-delay: .05s; }
+      .planet-list.is-switching .planet-item:nth-child(3) { animation-delay: .08s; }
+      .planet-list.is-switching .planet-item:nth-child(4) { animation-delay: .11s; }
+      .planet-list.is-switching .planet-item:nth-child(5) { animation-delay: .14s; }
+      .planet-list.is-switching .planet-item:nth-child(6) { animation-delay: .17s; }
+      .planet-list.is-switching .planet-item:nth-child(7) { animation-delay: .2s; }
+
+      .planet-list.is-switching .planet-item.active:before {
+        animation: active-dot .55s cubic-bezier(.22, 1, .36, 1) .18s both;
+      }
+
+      @keyframes reveal-down {
+        from { opacity: 0; filter: blur(8px); transform: translateY(-18px); }
+        to { opacity: 1; filter: blur(0); transform: translateY(0); }
+      }
+      @keyframes reveal-side {
+        from { opacity: 0; filter: blur(8px); transform: translate(-20px, -43%); }
+        to { opacity: 1; filter: blur(0); transform: translate(0, -43%); }
+      }
+      @keyframes title-rise-flush {
+        from { opacity: 0; filter: blur(12px); transform: translateY(42px); }
+        to { opacity: 1; filter: blur(0); transform: translateY(0); }
+      }
+      @keyframes title-rise {
+        from { opacity: 0; filter: blur(12px); transform: translate(-32px, 42px); }
+        to { opacity: 1; filter: blur(0); transform: translate(-32px, 0); }
+      }
+      @keyframes portal-caption {
+        from { opacity: 0; filter: blur(7px); transform: translateY(22px); }
+        to { opacity: 1; filter: blur(0); transform: translateY(0); }
+      }
+      @keyframes menu-row {
+        from { opacity: .35; transform: translateX(-8px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+      @keyframes active-dot {
+        from { opacity: 0; transform: scale(0); }
+        to { opacity: 1; transform: scale(1); }
+      }
+
+      /* RESPONSIVE */
+      @media (max-width: 900px) {
+        .nav { display: none; }
+        .portal-wrap { width: min(180px, 26vw); }
+        .planet-content h1 { font-size: clamp(52px, 17vw, 150px); }
+        .experience:has(.section-panel.is-active) .planet-content {
+          top: 258px;
+          bottom: auto;
+        }
+        /* a full-width panel leaves no room beside the rail; the portal still
+           navigates, and the rail is already hidden below 640 by the base design.
+           :has() keeps this tied to "a panel is showing", not to one section. */
+        .experience:has(.section-panel.is-active) .planet-list {
+          display: none;
+        }
+        .experience:has(.section-panel.is-active) .planet-content h1 {
+          font-size: clamp(40px, 9vw, 72px);
+          transform: translateX(0);
+        }
+        .experience:has(.section-panel.is-active).content-revealing h1 {
+          animation-name: title-rise-flush;
+        }
+        .section-panel {
+          left: 18px;
+          right: 18px;
+          width: auto;
+          top: 344px;
+          bottom: 18px;
+        }
+        .planet-list { font-size: 14px; }
+        .planet-item.active { font-size: 16px; }
+      }
+      @media (max-width: 900px) {
+        .macro-grid { grid-template-columns: repeat(2, 1fr); }
+      }
+      @media (max-width: 560px) {
+        .prog-grid { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 640px) {
+        .experience { min-height: 600px; }
+        .eat-tabs { gap: 16px; }
+        .log-macros, .food-macros { display: none; }
+        .planet-list { display: none; }
+        .portal-wrap { width: min(140px, 38vw); }
+        .panel-grid { grid-template-columns: 1fr; }
+        .experience:has(.section-panel.is-active) .planet-content { top: 218px; }
+        .experience:has(.section-panel.is-active) .planet-content h1 { font-size: clamp(34px, 11vw, 56px); }
+        .section-panel { top: 284px; }
+        .card-big { font-size: 30px; }
+        .stat-num { font-size: 38px; }
+        .planet-content { left: 18px; right: 18px; bottom: 18px; display: block; }
+        .planet-content h1 { font-size: clamp(44px, 17vw, 110px); margin-bottom: 20px; }
+        .portal-heading { font-size: 14px; }
+        .portal-heading strong { font-size: 16px; }
+        .menu { height: 38px; }
+        .portal { border-radius: 40px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * { transition-duration: .01ms !important; }
+        .portal { transform: none !important; }
+      }
+    </style>
+    <script>
+      (function() {
+        var t = null;
+        try { t = localStorage.getItem('pj-theme'); } catch (e) {}
+        if (t !== 'light' && t !== 'dark') {
+          t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+        }
+        document.documentElement.dataset.theme = t;
+      })();
+    </script>
+  </head>
+  <body>
+    <main class="experience" data-planet="mercury">
+      <div class="backgrounds" aria-hidden="true">
+        <div id="mercury-background" class="background is-visible">
+          <div class="home-layer home-base" id="home-base">
+            <img id="home-day" class="home-bg home-bg-day" src="/assets/home-day.png" alt="" />
+            <img id="home-night" class="home-bg home-bg-night" src="/assets/home-night.png" alt="" />
+          </div>
+          <div class="home-layer home-grass" id="home-grass">
+            <div class="home-grass-inner" id="home-grass-inner">
+              <img class="home-bg home-bg-day" src="/assets/home-day.png" alt="" />
+              <img class="home-bg home-bg-night" src="/assets/home-night.png" alt="" />
+            </div>
+          </div>
+          <div class="home-stars" id="home-stars"></div>
+          <div class="home-flies" id="home-flies"></div>
+        </div>
+        <!-- TRAIN: same day/night pair as Home, no grass band over it -->
+        <div id="venus-background" class="background">
+          <div class="home-layer train-base" id="train-base">
+            <img class="home-bg home-bg-day" src="/assets/train-day.png" alt="" />
+            <img class="home-bg home-bg-night" src="/assets/train-night.png" alt="" />
+          </div>
+        </div>
+        <!-- EAT: same day/night pair pattern as Train -->
+        <div id="earth-background" class="background">
+          <div class="home-layer eat-base" id="eat-base">
+            <img class="home-bg home-bg-day" src="/assets/eat-day.png" alt="" />
+            <img class="home-bg home-bg-night" src="/assets/eat-night.png" alt="" />
+          </div>
+        </div>
+        <!-- PROGRESS: same day/night pair pattern as Eat -->
+        <div id="mars-background" class="background">
+          <div class="home-layer progress-base" id="progress-base">
+            <img class="home-bg home-bg-day" src="/assets/progress-day.png" alt="" />
+            <img class="home-bg home-bg-night" src="/assets/progress-night.png" alt="" />
+          </div>
+        </div>
+        <!-- COACH: the monitor screen sits inside .coach-base, so the cursor
+             parallax carries it with the desk instead of sliding off it -->
+        <div id="coach-background" class="background">
+          <div class="home-layer coach-base" id="coach-base">
+            <img class="home-bg home-bg-day" src="/assets/coach-day.png" alt="" />
+            <img class="home-bg home-bg-night" src="/assets/coach-night.png" alt="" />
+            <div id="coach-screen" aria-hidden="true">
+              <div class="screen-fit" id="coach-fit"></div>
+              <div class="screen-glare"></div>
+              <div class="screen-vignette"></div>
+            </div>
+          </div>
+        </div>
+        <!-- TODO: replace with section art. Settings and Sign Out share this one
+             slot until each gets its own image. -->
+        <div id="placeholder-background" class="background">
+          <div class="home-layer">
+            <img class="home-bg home-bg-day" src="/assets/home-day.png" alt="" />
+            <img class="home-bg home-bg-night" src="/assets/home-night.png" alt="" />
+          </div>
+        </div>
+      </div>
+      <!-- The only remote asset left: the Earth clip the intro preloader plays.
+           Its src stays inline so the fetch starts during parse, as it did before. -->
+      <div class="preloader" id="preloader" aria-label="Loading">
+        <video id="preloader-video" src="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/fc3ded42-e845-41f3-a830-5cab512d79cd.mp4" muted playsinline preload="auto"></video>
+        <div class="preloader-shade"></div>
+      </div>
+      <div class="preloader-count" id="preloader-count" aria-live="polite">
+        <span id="preloader-value">0</span><span class="percent">%</span>
+      </div>
+      <canvas id="scene-canvas" class="scene-canvas" aria-hidden="true"></canvas>
+      <div class="shade" aria-hidden="true"></div>
+
+      <header class="header chrome">
+        <div class="header-actions">
+          
+          <button class="theme-toggle" id="theme-toggle" type="button" role="switch" aria-label="Dark mode" data-cursor="Toggle" data-magnetic>
+            <span class="theme-knob" aria-hidden="true"></span>
+            <span class="theme-icons" aria-hidden="true">
+              <svg class="theme-icon theme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.4v2.4M12 19.2v2.4M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2.4 12h2.4M19.2 12h2.4M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7"/></svg>
+              <svg class="theme-icon theme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 14.3A8.6 8.6 0 0 1 9.7 3.5a8.6 8.6 0 1 0 10.8 10.8z"/></svg>
+            </span>
+          </button>
+          <button class="menu" type="button" data-cursor="Open" data-magnetic>Menu</button>
+        </div>
+      </header>
+
+      <aside class="planet-list chrome" aria-label="Planets"></aside>
+
+      <section class="section-panel chrome" id="home-panel" data-section="mercury" aria-label="Today"></section>
+      <section class="section-panel chrome" id="train-panel" data-section="venus" aria-label="Your program"></section>
+      <section class="section-panel chrome" id="eat-panel" data-section="earth" aria-label="Eat"></section>
+      <section class="section-panel chrome" id="progress-panel" data-section="mars" aria-label="Progress"></section>
+      <section class="section-panel chrome" id="coach-panel" data-section="progress" aria-label="Coach"></section>
+
+      <canvas id="portal-canvas" class="portal-canvas" aria-hidden="true"></canvas>
+      <section class="portal-wrap chrome" aria-label="Next destination">
+        <div class="portal-heading">
+          <span>Next:</span>
+          <span><span id="next-number">[02]</span> <strong id="next-name">Train</strong></span>
+        </div>
+        <button class="portal" id="portal" type="button" aria-label="Go to Train" data-cursor="Enter">
+          <img id="portal-image" src="/assets/train-night.png" alt="" />
+        </button>
+      </section>
+
+      <section class="planet-content chrome" aria-live="polite">
+        <h1 id="planet-title">HOME</h1>
+      </section>
+
+      <div class="transition-layer" aria-hidden="true"><img id="transition-image" alt="" /></div>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+      <div class="loading" aria-hidden="true">Preparing orbit…</div>
+      <div class="custom-cursor" aria-hidden="true">
+        <span class="cursor-orbit"></span><span class="cursor-dot"></span><span class="cursor-label">Enter</span>
+      </div>
+    </main>
+
+    <script>
+      (function() {
+        const HOME_DAY = '/assets/home-day.png';
+        const HOME_NIGHT = '/assets/home-night.png';
+        const TRAIN_DAY = '/assets/train-day.png';
+        const TRAIN_NIGHT = '/assets/train-night.png';
+        const EAT_DAY = '/assets/eat-day.png';
+        const EAT_NIGHT = '/assets/eat-night.png';
+        const PROGRESS_DAY = '/assets/progress-day.png';
+        const PROGRESS_NIGHT = '/assets/progress-night.png';
+        const COACH_DAY = '/assets/coach-day.png';
+        const COACH_NIGHT = '/assets/coach-night.png';
+
+        function homeImage() {
+          return document.documentElement.dataset.theme === 'light' ? HOME_DAY : HOME_NIGHT;
+        }
+        function trainImage() {
+          return document.documentElement.dataset.theme === 'light' ? TRAIN_DAY : TRAIN_NIGHT;
+        }
+        function eatImage() {
+          return document.documentElement.dataset.theme === 'light' ? EAT_DAY : EAT_NIGHT;
+        }
+        function progressImage() {
+          return document.documentElement.dataset.theme === 'light' ? PROGRESS_DAY : PROGRESS_NIGHT;
+        }
+        function coachImage() {
+          return document.documentElement.dataset.theme === 'light' ? COACH_DAY : COACH_NIGHT;
+        }
+
+        // Destination chain. `arrival` is the still shown in the rounded window
+        // when travelling TO this section; `next` closes the loop back to Home.
+        // Every arrival is a themed image now, so the getters re-read per render.
+        const states = {
+          mercury:  { label: 'Home',     next: 'venus',    arrival: { type: 'image', get src() { return homeImage(); } },  background: 'mercury-background' },
+          venus:    { label: 'Train',    next: 'earth',    arrival: { type: 'image', get src() { return trainImage(); } }, background: 'venus-background' },
+          earth:    { label: 'Eat',      next: 'mars',     arrival: { type: 'image', get src() { return eatImage(); } },   background: 'earth-background' },
+          mars:     { label: 'Progress', next: 'progress', arrival: { type: 'image', get src() { return progressImage(); } }, background: 'mars-background' },
+          progress: { label: 'Coach',    next: 'settings', arrival: { type: 'image', get src() { return coachImage(); } }, background: 'coach-background' },
+          // TODO: replace with section art
+          settings: { label: 'Settings', next: 'signout',  arrival: { type: 'image', get src() { return homeImage(); } },  background: 'placeholder-background' },
+          // TODO: replace with section art
+          signout:  { label: 'Sign Out', next: 'mercury',  arrival: { type: 'image', get src() { return homeImage(); } },  background: 'placeholder-background' }
+        };
+
+        // section stills sit behind hidden backgrounds, so warm them at boot
+        [TRAIN_DAY, TRAIN_NIGHT, EAT_DAY, EAT_NIGHT, PROGRESS_DAY, PROGRESS_NIGHT, COACH_DAY, COACH_NIGHT]
+          .forEach(function(src) { new Image().src = src; });
+
+        const order = Object.keys(states);
+        order.forEach(function(key, i) { states[key].number = '[0' + (i + 1) + ']'; });
+
+        let current = 'mercury';
+        let busy = false;
+        let isFirstRender = true;
+        let hasFrozenScene = false;
+        let transitionActive = false;
+        let activeTransitionMedia = null;
+        let expansion = 0;
+        let maskScale = 0;
+        let canvasOpacity = 1;
+
+        let targetX = 0;
+        let targetY = 0;
+        let rotX = 0;
+        let rotY = 0;
+        let lastTime = performance.now();
+
+        let cursorX = window.innerWidth / 2;
+        let cursorY = window.innerHeight / 2;
+        let orbitX = cursorX;
+        let orbitY = cursorY;
+        let cursorVisible = false;
+
+        const experienceEl = document.querySelector('.experience');
+        const preloaderEl = document.getElementById('preloader');
+        const preloaderVideo = document.getElementById('preloader-video');
+        const preloaderCountEl = document.getElementById('preloader-count');
+        const preloaderValEl = document.getElementById('preloader-value');
+
+        const sceneCanvas = document.getElementById('scene-canvas');
+        const sceneCtx = sceneCanvas.getContext('2d');
+        const portalCanvas = document.getElementById('portal-canvas');
+        const portalCtx = portalCanvas.getContext('2d');
+
+        const portalBtn = document.getElementById('portal');
+        const portalImage = document.getElementById('portal-image');
+        const nextName = document.getElementById('next-name');
+        const nextNumber = document.getElementById('next-number');
+
+        const planetTitle = document.getElementById('planet-title');
+        const planetListEl = document.querySelector('.planet-list');
+
+        const transitionImage = document.getElementById('transition-image');
+        const cursorEl = document.querySelector('.custom-cursor');
+        const cursorDot = document.querySelector('.cursor-dot');
+        const cursorOrbit = document.querySelector('.cursor-orbit');
+
+        function easeInOutCubic(t) {
+          return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        }
+
+        function animateValue(setter, duration) {
+          return new Promise(function(resolve) {
+            const start = performance.now();
+            function tick(now) {
+              const elapsed = now - start;
+              const progress = Math.min(1, elapsed / duration);
+              const val = easeInOutCubic(progress);
+              setter(val);
+              if (progress < 1) {
+                requestAnimationFrame(tick);
+              } else {
+                setter(1);
+                resolve();
+              }
+            }
+            requestAnimationFrame(tick);
+          });
+        }
+
+        function resizeCanvas() {
+          const d = Math.min(window.devicePixelRatio || 1, 2);
+          portalCanvas.width = window.innerWidth * d;
+          portalCanvas.height = window.innerHeight * d;
+          portalCanvas.style.width = window.innerWidth + 'px';
+          portalCanvas.style.height = window.innerHeight + 'px';
+          portalCtx.setTransform(d, 0, 0, d, 0, 0);
+
+          if (!hasFrozenScene) {
+            sceneCanvas.width = window.innerWidth * d;
+            sceneCanvas.height = window.innerHeight * d;
+            sceneCtx.setTransform(d, 0, 0, d, 0, 0);
+          }
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        function drawCover(ctx, media) {
+          if (!media) return;
+          const mw = media.videoWidth || media.naturalWidth || media.width || 0;
+          const mh = media.videoHeight || media.naturalHeight || media.height || 0;
+          if (!mw || !mh) return;
+          const scale = Math.max(window.innerWidth / mw, window.innerHeight / mh);
+          const w = mw * scale;
+          const h = mh * scale;
+          const x = (window.innerWidth - w) / 2;
+          const y = (window.innerHeight - h) / 2;
+          ctx.drawImage(media, x, y, w, h);
+        }
+
+        function drawShade(ctx) {
+          const startY = window.innerHeight * 0.52;
+          const h = window.innerHeight - startY;
+          const grad = ctx.createLinearGradient(0, startY, 0, window.innerHeight);
+          grad.addColorStop(0, 'rgba(0,0,0,0)');
+          grad.addColorStop(1, 'rgba(0,0,0,0.88)');
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, startY, window.innerWidth, h);
+        }
+
+        function render() {
+          const state = states[current];
+          const nextState = states[state.next];
+          experienceEl.dataset.planet = current;
+          planetTitle.textContent = state.label.toUpperCase();
+          nextName.textContent = nextState.label;
+          nextNumber.textContent = nextState.number;
+          portalBtn.setAttribute('aria-label', 'Go to ' + nextState.label);
+
+          planetListEl.innerHTML = order.map(function(key) {
+            const active = key === current;
+            return '<button type="button" class="planet-item' + (active ? ' active' : '') + '" data-planet="' + key + '">' + states[key].label + '</button>';
+          }).join('');
+
+          if (!isFirstRender) {
+            planetListEl.classList.remove('is-switching');
+            void planetListEl.offsetWidth;
+            planetListEl.classList.add('is-switching');
+          } else {
+            isFirstRender = false;
+          }
+
+          document.querySelectorAll('.background').forEach(function(bg) {
+            bg.classList.toggle('is-visible', bg.id === state.background);
+          });
+
+          document.querySelectorAll('.section-panel').forEach(function(p) {
+            // Coach only uses its side panel on narrow viewports; on a wide one the
+            // monitor is the panel, and an .is-active here would trip the :has()
+            // rules that hide the left rail.
+            const on = p.dataset.section === current &&
+              !(p.id === 'coach-panel' && coachOnScreen());
+            p.classList.toggle('is-active', on);
+          });
+
+          // Progress reads Train, Eat and the check-in, any of which may have
+          // changed since the last visit, so it is rebuilt on every arrival
+          if (current === 'mars') buildProgressPanel();
+          if (current === 'progress') mountCoach();
+          else powerOffCoach();
+
+          startScene();
+
+          syncPortalPreview();
+        }
+
+        // Split out of render() so a theme toggle can re-read the arrival getter
+        // without also replaying the left-hand list's switch animation.
+        function syncPortalPreview() {
+          const preview = states[states[current].next].arrival;
+          if (portalImage.getAttribute('src') !== preview.src) {
+            portalImage.src = preview.src;
+          }
+        }
+
+        window.addEventListener('pointermove', function(e) {
+          if (e.pointerType === 'touch') return;
+          if (busy) return;
+          targetY = (e.clientX / window.innerWidth - 0.5) * 37.4;
+          targetX = (e.clientY / window.innerHeight - 0.5) * -33;
+        });
+        window.addEventListener('pointerleave', function() {
+          targetX = 0;
+          targetY = 0;
+        });
+
+        function draw(now) {
+          const dt = Math.min(40, now - lastTime);
+          lastTime = now;
+
+          rotX += (targetX - rotX) * Math.min(1, dt * 0.009);
+          rotY += (targetY - rotY) * Math.min(1, dt * 0.009);
+
+          portalCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+
+          if (hasFrozenScene) {
+            portalCtx.drawImage(sceneCanvas, 0, 0, window.innerWidth, window.innerHeight);
+            drawShade(portalCtx);
+          }
+
+          const rect = introRect || portalBtn.getBoundingClientRect();
+          const rectCx = rect.left + rect.width / 2;
+          const rectCy = rect.top + rect.height / 2;
+          const e = expansion;
+
+          const cx = rectCx + (window.innerWidth / 2 - rectCx) * e;
+          const cy = rectCy + (window.innerHeight / 2 - rectCy) * e;
+          const baseW = rect.width + (window.innerWidth - rect.width) * e;
+          const baseH = rect.height + (window.innerHeight - rect.height) * e;
+          const scale = e ? 1 : maskScale;
+          const w = baseW * scale;
+          const h = baseH * scale;
+          const r = Math.min(60 * (1 - e) * scale, Math.min(w / 2, h / 2));
+          const rx = rotX * (1 - e);
+          const ry = rotY * (1 - e);
+
+          if (w > 1 && h > 1) {
+            const rad = Math.max(0, r);
+            const arcs = [
+              [w / 2 - rad, -h / 2 + rad, -Math.PI / 2, 0],
+              [w / 2 - rad,  h / 2 - rad, 0, Math.PI / 2],
+              [-w / 2 + rad, h / 2 - rad, Math.PI / 2, Math.PI],
+              [-w / 2 + rad, -h / 2 + rad, Math.PI, Math.PI * 1.5]
+            ];
+
+            const points = [];
+            for (let i = 0; i < 4; i++) {
+              const acx = arcs[i][0];
+              const acy = arcs[i][1];
+              const startA = arcs[i][2];
+              const endA = arcs[i][3];
+              for (let s = 0; s <= 10; s++) {
+                const a = startA + (endA - startA) * (s / 10);
+                points.push({
+                  x: acx + Math.cos(a) * rad,
+                  y: acy + Math.sin(a) * rad
+                });
+              }
+            }
+
+            const ax = rx * Math.PI / 180;
+            const ay = ry * Math.PI / 180;
+            const cosAy = Math.cos(ay);
+            const sinAy = Math.sin(ay);
+            const cosAx = Math.cos(ax);
+            const sinAx = Math.sin(ax);
+
+            portalCtx.save();
+            portalCtx.globalAlpha = canvasOpacity;
+            portalCtx.beginPath();
+            for (let i = 0; i < points.length; i++) {
+              const px0 = points[i].x;
+              const py0 = points[i].y;
+              const xx = px0 * cosAy;
+              const yy = py0 * cosAx;
+              const z = px0 * sinAy - py0 * sinAx;
+              const p = 850 / (850 + z);
+              const sx = cx + xx * p;
+              const sy = cy + yy * p;
+              if (i === 0) portalCtx.moveTo(sx, sy);
+              else portalCtx.lineTo(sx, sy);
+            }
+            portalCtx.closePath();
+            portalCtx.clip();
+
+            portalCtx.fillStyle = '#030303';
+            portalCtx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+
+            // every arrival is a still now, so the window always shows the <img>
+            drawCover(portalCtx, activeTransitionMedia || portalImage);
+
+            if (transitionActive) {
+              drawShade(portalCtx);
+            }
+            portalCtx.restore();
+          }
+
+          requestAnimationFrame(draw);
+        }
+
+        window.addEventListener('pointermove', function(e) {
+          if (e.pointerType === 'touch') return;
+          cursorX = e.clientX;
+          cursorY = e.clientY;
+          if (!cursorVisible) {
+            cursorVisible = true;
+            cursorEl.classList.add('is-visible');
+          }
+          wakeScene();
+        });
+
+        document.addEventListener('mouseleave', function() {
+          cursorVisible = false;
+          cursorEl.classList.remove('is-visible');
+        });
+
+        const cursorLabel = document.querySelector('.cursor-label');
+
+        document.addEventListener('pointerover', function(e) {
+          const el = e.target.closest && e.target.closest('[data-cursor]');
+          if (!el) return;
+          cursorLabel.textContent = el.getAttribute('data-cursor');
+          cursorEl.classList.add('is-enter');
+        });
+        document.addEventListener('pointerout', function(e) {
+          const el = e.target.closest && e.target.closest('[data-cursor]');
+          if (el && !el.contains(e.relatedTarget)) cursorEl.classList.remove('is-enter');
+        });
+
+        function cursorLoop() {
+          orbitX += (cursorX - orbitX) * 0.2;
+          orbitY += (cursorY - orbitY) * 0.2;
+
+          cursorEl.style.transform = 'translate3d(' + orbitX + 'px, ' + orbitY + 'px, 0)';
+          cursorDot.style.transform = 'translate3d(' + (cursorX - orbitX) + 'px, ' + (cursorY - orbitY) + 'px, 0) translate(-50%, -50%)';
+
+          requestAnimationFrame(cursorLoop);
+        }
+
+        function revealMask() {
+          experienceEl.classList.remove('mask-revealing');
+          void experienceEl.offsetWidth;
+          experienceEl.classList.add('mask-revealing');
+          maskScale = 0;
+          return animateValue(function(v) { maskScale = v; }, 1050);
+        }
+
+        function revealPlanetContent() {
+          experienceEl.classList.remove('content-revealing');
+          void experienceEl.offsetWidth;
+          experienceEl.classList.add('content-revealing');
+          if (current === 'mercury') playPanelReveal();
+          else if (current === 'mars') playProgressReveal();
+          else if (current === 'progress') powerOnCoach();
+          else dropCardRects();
+        }
+
+        async function travel(targetPlanet) {
+          if (busy) return;
+          const next = targetPlanet || states[current].next;
+          if (next === current || !states[next]) return;
+          busy = true;
+          targetX = 0;
+          targetY = 0;
+
+          const arrival = states[next].arrival;
+
+          try {
+            experienceEl.classList.add('is-loading');
+
+            const usePortalImg = portalImage.getAttribute('src') === arrival.src;
+            activeTransitionMedia = usePortalImg ? portalImage : transitionImage;
+            if (!usePortalImg && transitionImage.getAttribute('src') !== arrival.src) {
+              transitionImage.src = arrival.src;
+            }
+            if (!activeTransitionMedia.complete) {
+              await new Promise(function(r) {
+                activeTransitionMedia.onload = r;
+                activeTransitionMedia.onerror = r;
+                setTimeout(r, 800);
+              });
+            }
+            experienceEl.classList.remove('is-loading', 'content-revealing', 'mask-revealing');
+            experienceEl.classList.add('is-transitioning');
+            canvasOpacity = 1;
+            transitionActive = true;
+            await animateValue(function(v) { expansion = v; }, 1100);
+
+            await new Promise(function(r) { setTimeout(r, 350); });
+
+            hasFrozenScene = true;
+            const d = Math.min(window.devicePixelRatio || 1, 2);
+            sceneCanvas.width = window.innerWidth * d;
+            sceneCanvas.height = window.innerHeight * d;
+            sceneCtx.setTransform(d, 0, 0, d, 0, 0);
+            sceneCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+            drawCover(sceneCtx, activeTransitionMedia);
+
+            current = next;
+            experienceEl.classList.add('is-committing');
+            render();
+
+            await new Promise(function(r) {
+              requestAnimationFrame(function() {
+                requestAnimationFrame(r);
+              });
+            });
+
+            transitionActive = false;
+            expansion = 0;
+            maskScale = 0;
+            canvasOpacity = 1;
+            activeTransitionMedia = null;
+            experienceEl.classList.remove('is-transitioning', 'is-committing');
+
+            const maskReveal = revealMask();
+            setTimeout(function() {
+              revealPlanetContent();
+            }, 100);
+            await maskReveal;
+
+            setTimeout(function() {
+              busy = false;
+              hasFrozenScene = false;
+            }, 450);
+          } catch (err) {
+            console.error('Travel sequence error:', err);
+            transitionActive = false;
+            expansion = 0;
+            maskScale = 1;
+            canvasOpacity = 1;
+            activeTransitionMedia = null;
+            hasFrozenScene = false;
+            experienceEl.classList.remove('is-loading', 'is-transitioning', 'is-committing');
+            busy = false;
+          }
+        }
+
+        portalBtn.addEventListener('click', function() { travel(); });
+
+        planetListEl.addEventListener('click', function(e) {
+          const btn = e.target.closest('.planet-item');
+          if (!btn || busy) return;
+          const p = btn.getAttribute('data-planet');
+          if (!p || p === current) return;
+          if (states[p]) travel(p);
+        });
+
+        // Lands the intro on Home with the same move every other arrival uses:
+        // freeze the last Earth frame, open the portal at centre on the clay house,
+        // expand it to full screen, then hand over to the real background.
+        async function startExperience() {
+          const arrival = states.mercury.arrival;
+          busy = true;
+
+          try {
+            // 1. hold the Earth frame on canvas BEFORE the preloader fades
+            if (preloaderVideo.videoWidth) {
+              const d = Math.min(window.devicePixelRatio || 1, 2);
+              sceneCanvas.width = window.innerWidth * d;
+              sceneCanvas.height = window.innerHeight * d;
+              sceneCtx.setTransform(d, 0, 0, d, 0, 0);
+              sceneCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+              drawCover(sceneCtx, preloaderVideo);
+              hasFrozenScene = true;
+            }
+
+            // 2. the window shows the clay house for the current theme
+            if (portalImage.getAttribute('src') !== arrival.src) portalImage.src = arrival.src;
+            if (!portalImage.complete) {
+              await new Promise(function(r) {
+                portalImage.onload = r;
+                portalImage.onerror = r;
+                setTimeout(r, 1500);
+              });
+            }
+
+            const w = Math.min(320, window.innerWidth * 0.31);
+            const h = w * 350 / 320;
+            introRect = {
+              left: (window.innerWidth - w) / 2,
+              top: (window.innerHeight - h) / 2,
+              width: w,
+              height: h
+            };
+
+            activeTransitionMedia = portalImage;
+            transitionActive = true;
+            canvasOpacity = 1;
+            expansion = 0;
+            targetX = 0;
+            targetY = 0;
+
+            // the canvas carries the picture now, so the video layer can go
+            preloaderEl.classList.add('is-background');
+
+            // 3. open at centre, then grow to full screen over the frozen Earth
+            await revealMask();
+            await animateValue(function(v) { expansion = v; }, 1100);
+
+            // 4. full screen on the house: swap to the real background underneath
+            transitionActive = false;
+            expansion = 0;
+            maskScale = 0;
+            introRect = null;
+            activeTransitionMedia = null;
+            hasFrozenScene = false;
+            render();
+
+            await new Promise(function(r) {
+              requestAnimationFrame(function() { requestAnimationFrame(r); });
+            });
+
+            // 5. normal chrome entrance; the top-left portal mask-reveals as usual
+            document.body.classList.add('intro-ready');
+            const maskReveal = revealMask();
+            setTimeout(function() { revealPlanetContent(); }, 100);
+            await maskReveal;
+          } catch (err) {
+            console.error('Intro landing error:', err);
+            transitionActive = false;
+            hasFrozenScene = false;
+            introRect = null;
+            activeTransitionMedia = null;
+            expansion = 0;
+            maskScale = 1;
+            preloaderEl.classList.add('is-background');
+            render();
+            document.body.classList.add('intro-ready');
+            revealPlanetContent();
+          }
+
+          busy = false;
+        }
+
+        function runPreloader() {
+          let finishCalled = false;
+          let bailout = setTimeout(function() {
+            if (!finishCalled) finish();
+          }, 9000);
+
+          function finish() {
+            if (finishCalled) return;
+            finishCalled = true;
+            preloaderValEl.textContent = '100';
+            preloaderCountEl.classList.add('is-leaving');
+            document.body.classList.add('preload-complete');
+            startExperience();
+            setTimeout(function() {
+              preloaderCountEl.remove();
+            }, 750);
+          }
+
+          function onProgress() {
+            if (finishCalled) return;
+            if (preloaderVideo.duration) {
+              const pct = Math.min(99, Math.round((preloaderVideo.currentTime / preloaderVideo.duration) * 100));
+              preloaderValEl.textContent = pct;
+            }
+            requestAnimationFrame(onProgress);
+          }
+
+          function startVideo() {
+            if (preloaderVideo.duration) {
+              preloaderVideo.playbackRate = Math.max(0.25, preloaderVideo.duration / 3);
+            }
+            preloaderVideo.play().then(function() {
+              requestAnimationFrame(onProgress);
+              // now that it is actually running, bail out against its real length
+              clearTimeout(bailout);
+              bailout = setTimeout(function() {
+                if (!finishCalled) finish();
+              }, ((preloaderVideo.duration || 5) / (preloaderVideo.playbackRate || 1)) * 1000 + 2000);
+            }).catch(function() {
+              finish();
+            });
+          }
+
+          preloaderVideo.addEventListener('ended', finish, { once: true });
+          preloaderVideo.addEventListener('error', finish, { once: true });
+
+          if (preloaderVideo.readyState >= 1) {
+            startVideo();
+          } else {
+            preloaderVideo.addEventListener('loadedmetadata', startVideo, { once: true });
+          }
+
+        }
+
+        const themeToggle = document.getElementById('theme-toggle');
+
+        function setTheme(next) {
+          function commit() {
+            document.documentElement.dataset.theme = next;
+            themeToggle.setAttribute('aria-checked', next === 'dark' ? 'true' : 'false');
+            try { localStorage.setItem('pj-theme', next); } catch (e) {}
+            // the preview window holds a themed still, and .src is a getter
+            syncPortalPreview();
+            // the night monitor sits a little right of the day one, so the screen
+            // rect travels between the two over the same 900ms as the crossfade
+            animateValue(function (t) {
+              screenMix = next === 'dark' ? t : 1 - t;
+              layoutCoachScreen();
+            }, 900);
+          }
+
+          const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          if (!document.startViewTransition || reduced) {
+            commit();
+            return;
+          }
+
+          const r = themeToggle.getBoundingClientRect();
+          const x = r.left + r.width / 2;
+          const y = r.top + r.height / 2;
+          const end = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y));
+
+          document.startViewTransition(commit).ready.then(function() {
+            document.documentElement.animate({
+              clipPath: [
+                'circle(0px at ' + x + 'px ' + y + 'px)',
+                'circle(' + end + 'px at ' + x + 'px ' + y + 'px)'
+              ]
+            }, {
+              duration: 620,
+              easing: 'cubic-bezier(.22, 1, .36, 1)',
+              pseudoElement: '::view-transition-new(root)'
+            });
+          }).catch(function() {});
+        }
+
+        themeToggle.setAttribute('aria-checked', document.documentElement.dataset.theme === 'dark' ? 'true' : 'false');
+        themeToggle.addEventListener('click', function() {
+          setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+        });
+
+        /* ---- HOME PANEL ---- */
+        // Everything the panel renders lives here; swap these for real data later.
+        const homeData = {
+          focusLabel: 'GENERAL FITNESS',
+          name: 'S YESHWANTH',
+          session: {
+            label: 'Your session today', title: 'Full body A', scope: 'Whole body',
+            duration: 'about 38 minutes', cta: 'Start session', target: 'venus'
+          },
+          focus: { label: 'Training focus', value: 'Balanced \u2014 general fitness', note: '4 days a week' },
+          calories: { label: 'Calories today', value: 0, goal: 2363, unit: 'kcal' },
+          week: { label: 'This week', value: 0, goal: 4, note: 'of 4 sessions', cta: 'See progress', target: 'mars' },
+          checkin: {
+            label: 'Daily check-in', blurb: 'Ten seconds. It shapes today\u2019s load.',
+            max: 5, initial: 3, cta: 'Log check-in',
+            fields: [
+              { key: 'energy', label: 'Energy' },
+              { key: 'sleep', label: 'Sleep quality' },
+              { key: 'soreness', label: 'Soreness' },
+              { key: 'stress', label: 'Stress' }
+            ]
+          }
+        };
+
+        const panelEl = document.getElementById('home-panel');
+        const checkin = homeData.checkin;
+        const checkinState = {};
+
+        (function seedCheckin() {
+          let saved = null;
+          try { saved = JSON.parse(localStorage.getItem('pj-checkin') || 'null'); } catch (e) {}
+          checkin.fields.forEach(function (fld) {
+            const v = saved && saved[fld.key];
+            checkinState[fld.key] = (typeof v === 'number' && v >= 1 && v <= checkin.max) ? v : checkin.initial;
+          });
+        })();
+
+        function pct(value, goal) {
+          return goal > 0 ? Math.max(0, Math.min(100, Math.round(value / goal * 100))) : 0;
+        }
+
+        function buildPanel() {
+          const hour = new Date().getHours();
+          const part = hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening';
+          const se = homeData.session, fo = homeData.focus, ca = homeData.calories, wk = homeData.week;
+
+          let segs = '';
+          checkin.fields.forEach(function (fld) {
+            let cells = '';
+            for (let i = 1; i <= checkin.max; i++) {
+              cells += '<span class="seg' + (i <= checkinState[fld.key] ? ' is-on' : '') + '" data-value="' + i + '"></span>';
+            }
+            segs += '<div class="seg-row"><div class="seg-top"><span>' + fld.label + '</span>' +
+              '<span class="seg-read" data-read="' + fld.key + '">' + checkinState[fld.key] + ' / ' + checkin.max + '</span></div>' +
+              '<div class="segs" role="slider" tabindex="0" data-field="' + fld.key + '" aria-label="' + fld.label +
+              '" aria-valuemin="1" aria-valuemax="' + checkin.max + '" aria-valuenow="' + checkinState[fld.key] + '">' +
+              cells + '</div></div>';
+          });
+
+          panelEl.innerHTML =
+            '<div class="panel-head">' +
+              '<div class="panel-eyebrow">Good ' + part + ' \u00b7 ' + homeData.focusLabel + '</div>' +
+              '<h2 class="panel-name">' + homeData.name + '<span class="dot">.</span></h2>' +
+            '</div>' +
+            '<div class="panel-grid">' +
+
+              '<article class="card is-wide">' +
+                '<svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8.5v7M7.5 5.5v13M16.5 5.5v13M20 8.5v7M7.5 12h9"/></svg>' +
+                '<div class="card-label">' + se.label + '</div>' +
+                '<h3 class="card-big">' + se.title + '</h3>' +
+                '<div class="card-note">' + se.scope + '</div>' +
+                '<div class="card-sub">' + se.duration + '</div>' +
+                '<button class="btn-accent" type="button" data-travel="' + se.target + '" data-cursor="Start">' + se.cta + ' \u2192</button>' +
+              '</article>' +
+
+              '<article class="card">' +
+                '<div class="card-label">' + fo.label + '</div>' +
+                '<h3 class="card-big is-small">' + fo.value + '</h3>' +
+                '<div class="card-note">' + fo.note + '</div>' +
+              '</article>' +
+
+              '<article class="card">' +
+                '<div class="card-label">' + ca.label + '</div>' +
+                '<div class="stat-row"><span class="stat-num" data-count="' + ca.value + '">0</span>' +
+                '<span class="stat-of">/ ' + ca.goal.toLocaleString() + ' ' + ca.unit + '</span></div>' +
+                '<div class="bar"><i data-fill="' + pct(ca.value, ca.goal) + '"></i></div>' +
+              '</article>' +
+
+              '<article class="card">' +
+                '<div class="card-label">' + wk.label + '</div>' +
+                '<div class="stat-row"><span class="stat-num" data-count="' + wk.value + '">0</span>' +
+                '<span class="stat-of">' + wk.note + '</span></div>' +
+                '<div class="bar is-green"><i data-fill="' + pct(wk.value, wk.goal) + '"></i></div>' +
+                '<div><button class="link-accent" type="button" data-travel="' + wk.target + '" data-cursor="Open">' + wk.cta + ' \u2192</button></div>' +
+              '</article>' +
+
+              '<article class="card">' +
+                '<div class="card-label">' + checkin.label + '</div>' +
+                '<div class="card-sub">' + checkin.blurb + '</div>' +
+                segs +
+                '<button class="btn-accent is-full" type="button" id="log-checkin" data-cursor="Log">' + checkin.cta + '</button>' +
+              '</article>' +
+
+            '</div>';
+        }
+
+        function playPanelReveal() {
+          dropCardRects();
+          panelEl.querySelectorAll('[data-count]').forEach(function (el) {
+            const to = Number(el.getAttribute('data-count')) || 0;
+            if (!to) { el.textContent = '0'; return; }
+            animateValue(function (t) { el.textContent = Math.round(to * t).toLocaleString(); }, 1200);
+          });
+          panelEl.querySelectorAll('[data-fill]').forEach(function (el) {
+            const to = el.getAttribute('data-fill');
+            el.style.width = '0%';
+            requestAnimationFrame(function () {
+              requestAnimationFrame(function () { el.style.width = to + '%'; });
+            });
+          });
+        }
+
+        function setField(key, value) {
+          value = Math.max(1, Math.min(checkin.max, value));
+          if (checkinState[key] === value) return;
+          checkinState[key] = value;
+          const group = panelEl.querySelector('.segs[data-field="' + key + '"]');
+          group.setAttribute('aria-valuenow', value);
+          const cells = group.querySelectorAll('.seg');
+          for (let i = 0; i < cells.length; i++) cells[i].classList.toggle('is-on', i < value);
+          panelEl.querySelector('[data-read="' + key + '"]').textContent = value + ' / ' + checkin.max;
+        }
+
+        function previewField(group, upto) {
+          const cells = group.querySelectorAll('.seg');
+          for (let i = 0; i < cells.length; i++) cells[i].classList.toggle('is-preview', upto > 0 && i < upto);
+        }
+
+        let dragField = null;
+
+        panelEl.addEventListener('pointerdown', function (e) {
+          const seg = e.target.closest('.seg');
+          if (!seg) return;
+          const group = seg.parentNode;
+          dragField = group.getAttribute('data-field');
+          setField(dragField, Number(seg.getAttribute('data-value')));
+          group.focus();
+          e.preventDefault();
+        });
+        panelEl.addEventListener('pointermove', function (e) {
+          const seg = e.target.closest('.seg');
+          if (!seg) return;
+          const group = seg.parentNode;
+          const value = Number(seg.getAttribute('data-value'));
+          if (dragField && group.getAttribute('data-field') === dragField) setField(dragField, value);
+          else previewField(group, value);
+        });
+        panelEl.addEventListener('pointerout', function (e) {
+          const seg = e.target.closest('.seg');
+          if (seg) previewField(seg.parentNode, 0);
+        });
+        window.addEventListener('pointerup', function () { dragField = null; });
+
+        panelEl.addEventListener('keydown', function (e) {
+          const group = e.target.closest('.segs');
+          if (!group) return;
+          const key = group.getAttribute('data-field');
+          const at = checkinState[key];
+          let next = at;
+          if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') next = at - 1;
+          else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') next = at + 1;
+          else if (e.key === 'Home') next = 1;
+          else if (e.key === 'End') next = checkin.max;
+          else if (e.key >= '1' && e.key <= String(checkin.max)) next = Number(e.key);
+          else return;
+          e.preventDefault();
+          setField(key, next);
+        });
+
+        panelEl.addEventListener('click', function (e) {
+          const jump = e.target.closest('[data-travel]');
+          if (jump) { travel(jump.getAttribute('data-travel')); return; }
+          const log = e.target.closest('#log-checkin');
+          if (!log || log.classList.contains('is-done')) return;
+          try { localStorage.setItem('pj-checkin', JSON.stringify(checkinState)); } catch (err) {}
+          log.textContent = 'Logged \u2713';
+          log.classList.add('is-done');
+          setTimeout(function () {
+            log.textContent = checkin.cta;
+            log.classList.remove('is-done');
+          }, 1800);
+        });
+
+        // Panels are rebuilt (tab switch, exercise swap, week count), so the tilt
+        // list is rescanned rather than captured once.
+        let panelCards = [];
+        function refreshCards() {
+          panelCards = [].slice.call(document.querySelectorAll('.section-panel .card')).map(function (el) {
+            return { el: el, rx: 0, ry: 0, rect: null, lit: false };
+          });
+        }
+        function dropCardRects() { panelCards.forEach(function (c) { c.rect = null; }); }
+        document.querySelectorAll('.section-panel').forEach(function (p) {
+          p.addEventListener('scroll', dropCardRects, { passive: true });
+        });
+        window.addEventListener('resize', dropCardRects);
+
+        /* ---- TOAST ---- */
+        const toastEl = document.getElementById('toast');
+        let toastTimer = 0;
+        function toast(msg) {
+          toastEl.textContent = msg;
+          toastEl.classList.add('is-on');
+          clearTimeout(toastTimer);
+          toastTimer = setTimeout(function () { toastEl.classList.remove('is-on'); }, 2400);
+        }
+
+        /* ---- TRAIN ---- */
+        // Everything the Train panel renders lives here.
+        const trainData = {
+          eyebrow: 'Your program',
+          title: 'Balanced \u2014 general fitness',
+          rebuild: 'Rebuild program',
+          chip: '4 days / week',
+          blurb: 'Pick today\u2019s session. A missed day is not a backlog \u2014 start the next one.',
+          scheme: '3 \u00d7 10-12 \u00b7 75s rest',
+          setsPerExercise: 3,
+          defaultReps: 12,
+          restSeconds: 75,
+          // the four tabs cycle two programs; each tab keeps its own progress
+          sessions: [
+            { label: 'Full Body A', plan: 'A' },
+            { label: 'Full Body B', plan: 'B' },
+            { label: 'Full Body A', plan: 'A' },
+            { label: 'Full Body B', plan: 'B' }
+          ],
+          plans: {
+            A: [
+              { name: 'Goblet Squat',
+                steps: ['Hold one dumbbell or kettlebell at your chest.', 'Squat down between your knees, elbows inside.', 'Stand back up, staying tall through the chest.'],
+                alt: { name: 'Box Squat', steps: ['Stand in front of a bench or box, weight at your chest.', 'Sit back until you touch the box lightly.', 'Drive through your heels to stand.'] } },
+              { name: 'Romanian Deadlift',
+                steps: ['Hold the weight in front of your thighs.', 'Push your hips back, lowering the weight down your legs.', 'Stand tall by squeezing your glutes.'],
+                alt: { name: 'Hip Thrust', steps: ['Sit with your upper back against a bench, weight on your hips.', 'Drive your hips up until your body is level.', 'Lower under control without touching down.'] } },
+              { name: 'Dumbbell Bench Press',
+                steps: ['Lie back holding a dumbbell in each hand.', 'Lower to chest level with control.', 'Press up until arms are straight.'],
+                alt: { name: 'Push-up', steps: ['Set your hands a little wider than your shoulders.', 'Lower your chest to just above the floor.', 'Press back up, keeping your body in one line.'] } },
+              { name: 'Dumbbell Row',
+                steps: ['Support one hand and knee on a bench.', 'Row the dumbbell to your hip.', 'Lower with control and repeat.'],
+                alt: { name: 'Chest-supported Row', steps: ['Lie chest-down on an inclined bench with a dumbbell in each hand.', 'Row both weights toward your hips.', 'Lower slowly until your arms are straight.'] } },
+              { name: 'Overhead Press',
+                steps: ['Hold the weight at shoulder height, elbows under.', 'Press overhead until your arms are straight.', 'Lower under control to the shoulders.'],
+                alt: { name: 'Landmine Press', steps: ['Hold the end of a bar at shoulder height.', 'Press it up and slightly forward.', 'Return to your shoulder under control.'] } }
+            ],
+            // TODO: confirm with me
+            B: [
+              { name: 'Reverse Lunge',
+                steps: ['Hold a dumbbell in each hand at your sides.', 'Step one foot back and lower your back knee.', 'Push through the front foot to stand.'],
+                alt: { name: 'Split Squat', steps: ['Stand in a staggered stance, weights at your sides.', 'Lower straight down until your back knee is low.', 'Drive up through the front leg.'] } },
+              { name: 'Glute Bridge',
+                steps: ['Lie on your back, knees bent, weight across your hips.', 'Press your hips up until your body is level.', 'Lower without letting your hips rest.'],
+                alt: { name: 'Hip Thrust', steps: ['Sit with your upper back against a bench, weight on your hips.', 'Drive your hips up until your body is level.', 'Lower under control without touching down.'] } },
+              { name: 'Incline Dumbbell Press',
+                steps: ['Set a bench to a low incline and lie back.', 'Lower the dumbbells to the top of your chest.', 'Press up until your arms are straight.'],
+                alt: { name: 'Incline Push-up', steps: ['Place your hands on a bench or step.', 'Lower your chest toward your hands.', 'Press back up in one line.'] } },
+              { name: 'One-arm Row',
+                steps: ['Support one hand and knee on a bench.', 'Pull the dumbbell up toward your hip.', 'Lower it all the way down and repeat.'],
+                alt: { name: 'Renegade Row', steps: ['Start in a push-up position holding two dumbbells.', 'Row one dumbbell to your hip, keeping your hips square.', 'Set it down and swap sides.'] } },
+              { name: 'Lateral Raise',
+                steps: ['Hold a light dumbbell in each hand at your sides.', 'Raise your arms out to shoulder height.', 'Lower them slowly back down.'],
+                alt: { name: 'Upright Row', steps: ['Hold the weights in front of your thighs.', 'Pull your elbows up toward your shoulders.', 'Lower under control.'] } }
+            ]
+          }
+        };
+
+        const trainPanelEl = document.getElementById('train-panel');
+        const TOTAL_SETS = trainData.sessions.length ? trainData.plans.A.length * trainData.setsPerExercise : 0;
+
+        function dayKey() {
+          const d = new Date();
+          return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        }
+        function tabStoreKey(i) { return 'pj-train-' + dayKey() + '-' + i; }
+
+        // one bucket per tab; `swap` flags which exercises show their alternative
+        const trainTabs = trainData.sessions.map(function (sess, i) {
+          const plan = trainData.plans[sess.plan];
+          const blank = {
+            swap: plan.map(function () { return 0; }),
+            sets: plan.map(function () {
+              const rows = [];
+              for (let k = 0; k < trainData.setsPerExercise; k++) {
+                rows.push({ reps: String(trainData.defaultReps), kg: '', done: false });
+              }
+              return rows;
+            }),
+            done: false
+          };
+          let saved = null;
+          try { saved = JSON.parse(localStorage.getItem(tabStoreKey(i)) || 'null'); } catch (e) {}
+          if (saved && Array.isArray(saved.sets) && saved.sets.length === plan.length) {
+            blank.done = !!saved.done;
+            if (Array.isArray(saved.swap) && saved.swap.length === plan.length) blank.swap = saved.swap;
+            saved.sets.forEach(function (rows, ex) {
+              if (!Array.isArray(rows)) return;
+              rows.forEach(function (row, k) {
+                if (!row || !blank.sets[ex][k]) return;
+                blank.sets[ex][k] = {
+                  reps: typeof row.reps === 'string' ? row.reps : String(trainData.defaultReps),
+                  kg: typeof row.kg === 'string' ? row.kg : '',
+                  done: !!row.done
+                };
+              });
+            });
+          }
+          return blank;
+        });
+
+        let activeTab = 0;
+        const restEnds = {};   // exercise index -> timestamp the 75s rest ends
+        let restTimer = 0;
+
+        function saveTab(i) {
+          try { localStorage.setItem(tabStoreKey(i), JSON.stringify(trainTabs[i])); } catch (e) {}
+        }
+        function planOf(i) { return trainData.plans[trainData.sessions[i].plan]; }
+        function exerciseAt(tab, ex) {
+          const base = planOf(tab)[ex];
+          return trainTabs[tab].swap[ex] ? base.alt : base;
+        }
+        function doneCount(tab) {
+          let c = 0;
+          trainTabs[tab].sets.forEach(function (rows) {
+            rows.forEach(function (r) { if (r.done) c++; });
+          });
+          return c;
+        }
+
+        const TICK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5 10-11"/></svg>';
+
+        function setRowsHtml(tab, ex) {
+          const rows = trainTabs[tab].sets[ex];
+          return rows.map(function (row, k) {
+            return '<div class="set-row' + (row.done ? ' is-done' : '') + '" data-set="' + k + '">' +
+              '<span class="set-label">Set ' + (k + 1) + '</span>' +
+              '<input class="in-reps" type="text" inputmode="numeric" value="' + row.reps + '" aria-label="Set ' + (k + 1) + ' reps" />' +
+              '<span class="set-unit">reps</span>' +
+              '<input class="in-kg" type="text" inputmode="decimal" placeholder="kg" value="' + row.kg + '" aria-label="Set ' + (k + 1) + ' weight in kilograms" />' +
+              '<button class="set-check' + (row.done ? ' is-on' : '') + '" type="button" data-check="' + k +
+              '" data-cursor="Check" aria-pressed="' + (row.done ? 'true' : 'false') +
+              '" aria-label="Complete set ' + (k + 1) + '">' + TICK_SVG + '</button>' +
+            '</div>';
+          }).join('');
+        }
+
+        function exerciseInnerHtml(tab, ex) {
+          const item = exerciseAt(tab, ex);
+          return '<div class="ex-head">' +
+              '<div>' +
+                '<h3 class="ex-name">' + item.name + '</h3>' +
+                '<div class="ex-scheme">' + trainData.scheme + '</div>' +
+              '</div>' +
+              '<button class="btn-outline" type="button" data-swap="' + ex + '" data-cursor="Swap">\u21c4 Can\u2019t do this?</button>' +
+            '</div>' +
+            '<div class="panel-rule"></div>' +
+            '<ol class="ex-steps">' + item.steps.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ol>' +
+            '<div class="sets">' + setRowsHtml(tab, ex) + '</div>' +
+            '<div class="rest-slot"></div>';
+        }
+
+        function buildTrainPanel() {
+          const tab = activeTab;
+          const plan = planOf(tab);
+
+          const tabs = trainData.sessions.map(function (sess, i) {
+            return '<button class="tab' + (i === tab ? ' is-active' : '') + '" type="button" data-tab="' + i +
+              '" aria-pressed="' + (i === tab ? 'true' : 'false') + '">' + sess.label + '</button>';
+          }).join('');
+
+          const cards = plan.map(function (_, ex) {
+            return '<article class="card ex" data-ex="' + ex + '">' + exerciseInnerHtml(tab, ex) + '</article>';
+          }).join('');
+
+          trainPanelEl.innerHTML =
+            '<div class="panel-head train-head">' +
+              '<div>' +
+                '<div class="panel-eyebrow">' + trainData.eyebrow + '</div>' +
+                '<h2 class="panel-title">' + trainData.title + '</h2>' +
+              '</div>' +
+              '<button class="btn-outline" type="button" id="rebuild-program" data-cursor="Open" data-magnetic>' + trainData.rebuild + '</button>' +
+            '</div>' +
+            '<div class="panel-rule"></div>' +
+            '<div class="train-meta"><span class="chip">' + trainData.chip + '</span><span>' + trainData.blurb + '</span></div>' +
+            '<div class="train-tabs" role="group" aria-label="Sessions">' + tabs + '</div>' +
+            '<div class="train-status">' +
+              '<span id="set-counter">0 / ' + TOTAL_SETS + ' sets</span>' +
+              '<button class="btn-accent is-small" type="button" data-complete data-cursor="Finish" data-magnetic>Complete session</button>' +
+            '</div>' +
+            '<div class="ex-list">' + cards + '</div>' +
+            '<div class="train-finish">' +
+              '<button class="btn-accent is-big" type="button" data-complete data-cursor="Finish" data-magnetic>Complete session</button>' +
+            '</div>';
+
+          syncTrainStatus();
+          refreshCards();
+          refreshMagnets();
+        }
+
+        // counter + both Complete buttons; called after every set toggle so the
+        // panel never has to be rebuilt while someone is typing in it
+        function syncTrainStatus() {
+          const done = doneCount(activeTab);
+          const finished = trainTabs[activeTab].done;
+          const counter = trainPanelEl.querySelector('#set-counter');
+          if (counter) counter.textContent = done + ' / ' + TOTAL_SETS + ' sets';
+          trainPanelEl.querySelectorAll('[data-complete]').forEach(function (btn) {
+            btn.disabled = done === 0 && !finished;
+            btn.textContent = finished ? 'Session complete \u2713' : 'Complete session';
+          });
+        }
+
+        function paintRest(ex) {
+          const card = trainPanelEl.querySelector('.card.ex[data-ex="' + ex + '"]');
+          if (!card) return;
+          const slot = card.querySelector('.rest-slot');
+          const end = restEnds[ex];
+          if (!end) { slot.innerHTML = ''; return; }
+          const left = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+          let chip = slot.querySelector('.rest-chip');
+          if (!chip) {
+            slot.innerHTML = '<button class="rest-chip" type="button" data-rest="' + ex + '" aria-live="polite"></button>';
+            chip = slot.querySelector('.rest-chip');
+          }
+          chip.textContent = 'Rest ' + left + 's';
+        }
+
+        function startRest(ex) {
+          restEnds[ex] = Date.now() + trainData.restSeconds * 1000;
+          paintRest(ex);
+          if (restTimer) return;
+          restTimer = setInterval(function () {
+            let any = false;
+            Object.keys(restEnds).forEach(function (k) {
+              if (restEnds[k] <= Date.now()) { delete restEnds[k]; paintRest(Number(k)); }
+              else { any = true; paintRest(Number(k)); }
+            });
+            if (!any) { clearInterval(restTimer); restTimer = 0; }
+          }, 1000);
+        }
+
+        function clearRest(ex) {
+          if (!(ex in restEnds)) return;
+          delete restEnds[ex];
+          paintRest(ex);
+        }
+
+        function toggleSet(ex, k, btn) {
+          const row = trainTabs[activeTab].sets[ex][k];
+          row.done = !row.done;
+          btn.classList.toggle('is-on', row.done);
+          btn.setAttribute('aria-pressed', row.done ? 'true' : 'false');
+          btn.closest('.set-row').classList.toggle('is-done', row.done);
+          if (row.done) startRest(ex);
+          else if (!trainTabs[activeTab].sets[ex].some(function (r) { return r.done; })) clearRest(ex);
+          syncTrainStatus();
+          saveTab(activeTab);
+        }
+
+        function swapExercise(ex) {
+          const card = trainPanelEl.querySelector('.card.ex[data-ex="' + ex + '"]');
+          if (!card) return;
+          trainTabs[activeTab].swap[ex] = trainTabs[activeTab].swap[ex] ? 0 : 1;
+          saveTab(activeTab);
+          card.classList.add('is-swapping');
+          setTimeout(function () {
+            // set count and their checked state are kept: only the copy changes
+            card.innerHTML = exerciseInnerHtml(activeTab, ex);
+            paintRest(ex);
+            card.classList.remove('is-swapping');
+            refreshCards();
+            refreshMagnets();
+          }, reducedMotion ? 0 : 170);
+        }
+
+        function completeSession() {
+          const tab = activeTab;
+          if (trainTabs[tab].done) return;
+          const done = doneCount(tab);
+          if (done === 0) return;
+          if (done < TOTAL_SETS &&
+              !window.confirm('Only ' + done + ' of ' + TOTAL_SETS + ' sets are ticked. Finish this session anyway?')) return;
+          trainTabs[tab].done = true;
+          saveTab(tab);
+          syncTrainStatus();
+          // Home's weekly count is the one place Train writes outside itself
+          homeData.week.value = Math.min(homeData.week.goal, homeData.week.value + 1);
+          buildPanel();
+          refreshCards();
+          if (current === 'mercury') playPanelReveal();
+        }
+
+        trainPanelEl.addEventListener('click', function (e) {
+          const t = e.target;
+          const check = t.closest('[data-check]');
+          if (check) {
+            toggleSet(Number(check.closest('.card.ex').getAttribute('data-ex')), Number(check.getAttribute('data-check')), check);
+            return;
+          }
+          const swap = t.closest('[data-swap]');
+          if (swap) { swapExercise(Number(swap.getAttribute('data-swap'))); return; }
+          const rest = t.closest('[data-rest]');
+          if (rest) { clearRest(Number(rest.getAttribute('data-rest'))); return; }
+          const tab = t.closest('[data-tab]');
+          if (tab) {
+            const i = Number(tab.getAttribute('data-tab'));
+            if (i === activeTab) return;
+            activeTab = i;
+            Object.keys(restEnds).forEach(function (k) { delete restEnds[k]; });
+            buildTrainPanel();
+            return;
+          }
+          if (t.closest('[data-complete]')) { completeSession(); return; }
+          if (t.closest('#rebuild-program')) toast('Program builder coming soon');
+        });
+
+        // digits only for reps; one decimal point allowed for kg
+        trainPanelEl.addEventListener('input', function (e) {
+          const el = e.target;
+          const reps = el.classList.contains('in-reps');
+          const kg = el.classList.contains('in-kg');
+          if (!reps && !kg) return;
+          const cleaned = reps
+            ? el.value.replace(/[^0-9]/g, '')
+            : el.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+          if (cleaned !== el.value) el.value = cleaned;
+          const ex = Number(el.closest('.card.ex').getAttribute('data-ex'));
+          const k = Number(el.closest('.set-row').getAttribute('data-set'));
+          trainTabs[activeTab].sets[ex][k][reps ? 'reps' : 'kg'] = cleaned;
+          saveTab(activeTab);
+        });
+
+
+
+
+        /* ---- EAT ---- */
+        // Everything the Eat panel renders lives here.
+        const eatData = {
+          eyebrow: 'Surplus',
+          title: 'Eat',
+          chip: 'Regional',
+          chipToast: 'Food list: Regional (South India)',
+          targetsLabel: 'Targets \u00b7 Surplus',
+          derivedCta: 'How derived',
+          // TODO: replace with the real derivation once the maths is settled
+          derivedCopy: 'Your targets start from body weight and activity level, then add a surplus for the goal you picked. Protein is set per kilo first; carbs and fat split what is left.',
+          meals: ['Breakfast', 'Lunch', 'Snacks', 'Dinner'],
+          tabs: [
+            { key: 'log', label: "Today's log" },
+            { key: 'add', label: 'Add food' },
+            { key: 'plan', label: 'Day plan' }
+          ],
+          empty: { title: 'Nothing logged yet today.', sub: 'Use Add food, or build a day plan to get started.' },
+          macros: [
+            // Calories uses the ink colour so the line survives the light theme
+            { key: 'kcal', label: 'Calories', target: 2363, unit: '', color: 'var(--card-ink)' },
+            { key: 'p', label: 'Protein', target: 112, unit: 'g', color: '#FF4A0F' },
+            { key: 'c', label: 'Carbs', target: 330, unit: 'g', color: '#6FBF8B' },
+            { key: 'f', label: 'Fat', target: 66, unit: 'g', color: '#E5484D' }
+          ],
+          // TODO: confirm values with me
+          foods: [
+            { id: 'idli',    name: 'Idli',          serving: '2 pieces', kcal: 116, p: 4,    c: 24, f: 0.6, meal: 'Breakfast' },
+            { id: 'dosa',    name: 'Dosa',          serving: '1 dosa',   kcal: 168, p: 4,    c: 25, f: 6,   meal: 'Breakfast' },
+            { id: 'sambar',  name: 'Sambar',        serving: '1 cup',    kcal: 139, p: 7,    c: 20, f: 4,   meal: 'Breakfast' },
+            { id: 'rice',    name: 'Rice',          serving: '1 cup',    kcal: 205, p: 4,    c: 45, f: 0.4, meal: 'Lunch' },
+            { id: 'chapati', name: 'Chapati',       serving: '1 piece',  kcal: 104, p: 3,    c: 18, f: 2.5, meal: 'Dinner' },
+            { id: 'dal',     name: 'Dal',           serving: '1 cup',    kcal: 198, p: 12,   c: 32, f: 2,   meal: 'Lunch' },
+            { id: 'curd',    name: 'Curd',          serving: '1 cup',    kcal: 98,  p: 11,   c: 12, f: 1,   meal: 'Lunch' },
+            { id: 'eggs',    name: 'Boiled eggs',   serving: '2 eggs',   kcal: 156, p: 13,   c: 1,  f: 11,  meal: 'Breakfast' },
+            { id: 'chicken', name: 'Chicken curry', serving: '1 cup',    kcal: 243, p: 25,   c: 6,  f: 13,  meal: 'Dinner' },
+            { id: 'paneer',  name: 'Paneer',        serving: '100 g',    kcal: 296, p: 18,   c: 4,  f: 23,  meal: 'Dinner' },
+            { id: 'banana',  name: 'Banana',        serving: '1 medium', kcal: 105, p: 1.3,  c: 27, f: 0.4, meal: 'Snacks' },
+            { id: 'milk',    name: 'Milk',          serving: '1 glass',  kcal: 149, p: 8,    c: 12, f: 8,   meal: 'Snacks' }
+          ]
+        };
+
+        const eatPanelEl = document.getElementById('eat-panel');
+        const MACRO_KEYS = eatData.macros.map(function (m) { return m.key; });
+
+        function foodById(id) {
+          return eatData.foods.filter(function (fd) { return fd.id === id; })[0] || null;
+        }
+        function eatStoreKey() { return 'pj-eat-' + dayKey(); }
+
+        // [{ id, foodId, meal, servings }] -- one entry per logged portion
+        let eatLog = (function () {
+          let saved = null;
+          try { saved = JSON.parse(localStorage.getItem(eatStoreKey()) || 'null'); } catch (e) {}
+          if (!Array.isArray(saved)) return [];
+          return saved.filter(function (it) {
+            return it && foodById(it.foodId) && eatData.meals.indexOf(it.meal) > -1 && Number(it.servings) > 0;
+          }).map(function (it) {
+            return { id: it.id || ('l' + Math.random().toString(36).slice(2, 9)), foodId: it.foodId, meal: it.meal, servings: Number(it.servings) };
+          });
+        })();
+
+        function saveEatLog() {
+          try { localStorage.setItem(eatStoreKey(), JSON.stringify(eatLog)); } catch (e) {}
+        }
+
+        let eatTab = 'log';
+        let derivedOpen = false;
+        let newRowId = null;
+        const addServings = {};   // food id -> servings chosen in the Add food tab
+        let foodQuery = '';
+
+        function eatTotals() {
+          const t = { kcal: 0, p: 0, c: 0, f: 0 };
+          eatLog.forEach(function (it) {
+            const fd = foodById(it.foodId);
+            if (!fd) return;
+            MACRO_KEYS.forEach(function (k) { t[k] += fd[k] * it.servings; });
+          });
+          return t;
+        }
+
+        function round1(v) { return Math.round(v * 10) / 10; }
+        function servingLabel(fd, servings) {
+          return (servings === 1 ? '' : servings + ' \u00d7 ') + fd.serving;
+        }
+
+        function macroCellHtml(m, value) {
+          const over = value > m.target;
+          const shown = m.key === 'kcal' ? Math.round(value).toLocaleString() : round1(value);
+          return '<div class="macro" style="--c: ' + m.color + '">' +
+              '<div class="macro-top"><span class="macro-name">' + m.label + '</span>' +
+              '<span class="macro-read' + (over ? ' is-over' : '') + '" data-macro="' + m.key + '">' +
+                shown + ' / ' + m.target.toLocaleString() + '</span></div>' +
+              '<div class="macro-bar"><i data-macro-fill="' + m.key + '" style="width:' +
+                Math.min(100, m.target ? value / m.target * 100 : 0).toFixed(1) + '%"></i></div>' +
+            '</div>';
+        }
+
+        // Patches the four numbers and bars in place. Used after every add/remove
+        // so the Add food search box never loses focus to a full rebuild.
+        function syncMacros(animate) {
+          const t = eatTotals();
+          eatData.macros.forEach(function (m) {
+            const read = eatPanelEl.querySelector('[data-macro="' + m.key + '"]');
+            const fill = eatPanelEl.querySelector('[data-macro-fill="' + m.key + '"]');
+            const value = t[m.key];
+            if (fill) fill.style.width = Math.min(100, m.target ? value / m.target * 100 : 0).toFixed(1) + '%';
+            if (!read) return;
+            read.classList.toggle('is-over', value > m.target);
+            const text = function (v) {
+              return (m.key === 'kcal' ? Math.round(v).toLocaleString() : round1(v)) + ' / ' + m.target.toLocaleString();
+            };
+            if (animate && value > 0) {
+              const from = Number(read.getAttribute('data-from')) || 0;
+              animateValue(function (p) { read.textContent = text(from + (value - from) * p); }, 700);
+            } else {
+              read.textContent = text(value);
+            }
+            read.setAttribute('data-from', value);
+          });
+          syncHomeCalories();
+        }
+
+        // Home's calories card is the one place Eat writes outside itself
+        function syncHomeCalories() {
+          const kcal = Math.round(eatTotals().kcal);
+          if (homeData.calories.value === kcal) return;
+          homeData.calories.value = kcal;
+          buildPanel();
+          refreshCards();
+          if (current === 'mercury') playPanelReveal();
+        }
+
+        function logTabHtml() {
+          if (!eatLog.length) {
+            return '<article class="card empty-card">' +
+                '<div class="empty-title">' + eatData.empty.title + '</div>' +
+                '<div class="empty-sub">' + eatData.empty.sub + '</div>' +
+              '</article>';
+          }
+          return eatData.meals.map(function (meal) {
+            const items = eatLog.filter(function (it) { return it.meal === meal; });
+            if (!items.length) return '';
+            let kcal = 0;
+            const rows = items.map(function (it) {
+              const fd = foodById(it.foodId);
+              kcal += fd.kcal * it.servings;
+              return '<div class="log-row' + (it.id === newRowId ? ' is-new' : '') + '">' +
+                  '<div><div class="log-name">' + fd.name + '</div>' +
+                  '<div class="log-serve">' + servingLabel(fd, it.servings) + '</div></div>' +
+                  '<span class="log-kcal">' + Math.round(fd.kcal * it.servings) + '</span>' +
+                  '<span class="log-macros">P ' + round1(fd.p * it.servings) + ' \u00b7 C ' + round1(fd.c * it.servings) +
+                    ' \u00b7 F ' + round1(fd.f * it.servings) + '</span>' +
+                  '<button class="icon-btn" type="button" data-remove="' + it.id +
+                    '" data-cursor="Remove" aria-label="Remove ' + fd.name + '">\u00d7</button>' +
+                '</div>';
+            }).join('');
+            return '<article class="card">' +
+                '<div class="meal-head"><span class="meal-name">' + meal + '</span>' +
+                '<span class="meal-kcal">' + Math.round(kcal) + ' kcal</span></div>' + rows +
+              '</article>';
+          }).join('');
+        }
+
+        function foodListHtml() {
+          const q = foodQuery.trim().toLowerCase();
+          const list = eatData.foods.filter(function (fd) {
+            return !q || fd.name.toLowerCase().indexOf(q) > -1;
+          });
+          if (!list.length) return '<div class="food-empty">No food matches \u201c' + foodQuery + '\u201d.</div>';
+          return list.map(function (fd) {
+            const sv = addServings[fd.id] || 1;
+            return '<div class="food-row" data-food="' + fd.id + '">' +
+                '<div><div class="food-name">' + fd.name + '</div>' +
+                '<div class="food-macros">' + fd.serving + ' \u00b7 ' + fd.kcal + ' kcal \u00b7 P ' + fd.p +
+                  ' \u00b7 C ' + fd.c + ' \u00b7 F ' + fd.f + '</div></div>' +
+                '<div class="stepper">' +
+                  '<button type="button" data-step="-1" aria-label="Less ' + fd.name + '">\u2212</button>' +
+                  '<span data-serve="' + fd.id + '">' + sv + '</span>' +
+                  '<button type="button" data-step="1" aria-label="More ' + fd.name + '">+</button>' +
+                '</div>' +
+                '<button class="btn-accent is-small" type="button" data-add="' + fd.id + '" data-cursor="Add">Add</button>' +
+              '</div>';
+          }).join('');
+        }
+
+        function addTabHtml() {
+          const opts = eatData.meals.map(function (m) {
+            return '<option value="' + m + '"' + (m === addMeal ? ' selected' : '') + '>' + m + '</option>';
+          }).join('');
+          return '<article class="card">' +
+              '<div class="add-controls">' +
+                '<input id="food-search" type="search" placeholder="Search food" value="' + foodQuery + '" aria-label="Search food" />' +
+                '<select id="meal-select" aria-label="Meal">' + opts + '</select>' +
+              '</div>' +
+              '<div id="food-list">' + foodListHtml() + '</div>' +
+            '</article>';
+        }
+
+        // TODO: placeholder generator -- fills each meal from its own foods until
+        // the meal's slice of the calorie target is covered. Not nutrition advice.
+        function buildDayPlan() {
+          const kcalTarget = eatData.macros[0].target;
+          const share = { Breakfast: 0.25, Lunch: 0.3, Snacks: 0.15, Dinner: 0.3 };
+          return eatData.meals.map(function (meal) {
+            const budget = kcalTarget * share[meal];
+            const pool = eatData.foods.filter(function (fd) { return fd.meal === meal; });
+            const items = [];
+            let kcal = 0;
+            // stop once the meal is close enough rather than always adding a
+            // whole extra serving, which used to overshoot every budget
+            for (let i = 0; i < pool.length && kcal < budget * 0.9; i++) {
+              const need = (budget - kcal) / pool[i].kcal;
+              const servings = Math.max(1, Math.round(need * 2) / 2);
+              items.push({ foodId: pool[i].id, servings: servings });
+              kcal += pool[i].kcal * servings;
+            }
+            return { meal: meal, items: items };
+          });
+        }
+
+        let dayPlan = null;
+
+        function planTabHtml() {
+          if (!dayPlan) {
+            return '<article class="card">' +
+                '<div class="plan-intro">A starting point for the day, built from the regional list to land near your targets.</div>' +
+                '<button class="btn-accent" type="button" id="make-plan" data-cursor="Build" data-magnetic>Build my day plan</button>' +
+              '</article>';
+          }
+          const cards = dayPlan.map(function (grp) {
+            let kcal = 0;
+            const rows = grp.items.map(function (it) {
+              const fd = foodById(it.foodId);
+              kcal += fd.kcal * it.servings;
+              return '<div class="log-row"><div><div class="log-name">' + fd.name + '</div>' +
+                '<div class="log-serve">' + servingLabel(fd, it.servings) + '</div></div>' +
+                '<span class="log-kcal">' + Math.round(fd.kcal * it.servings) + '</span></div>';
+            }).join('');
+            return '<article class="card">' +
+                '<div class="meal-head"><span class="meal-name">' + grp.meal + '</span>' +
+                '<span class="meal-kcal">' + Math.round(kcal) + ' kcal</span></div>' + rows +
+              '</article>';
+          }).join('');
+          let total = 0;
+          dayPlan.forEach(function (grp) {
+            grp.items.forEach(function (it) { total += foodById(it.foodId).kcal * it.servings; });
+          });
+          return cards + '<article class="card">' +
+              '<div class="plan-total">Plan total: ' + Math.round(total) + ' kcal of ' +
+                eatData.macros[0].target.toLocaleString() + '</div>' +
+              '<button class="btn-accent" type="button" id="add-plan" data-cursor="Add" data-magnetic>Add all to log</button>' +
+              '<button class="btn-outline" type="button" id="redo-plan" data-cursor="Build">Rebuild</button>' +
+            '</article>';
+        }
+
+        let addMeal = eatData.meals[0];
+
+        function buildEatPanel() {
+          const t = eatTotals();
+          const tabs = eatData.tabs.map(function (tb) {
+            return '<button class="tab-text' + (tb.key === eatTab ? ' is-active' : '') + '" type="button" data-eat-tab="' +
+              tb.key + '" aria-pressed="' + (tb.key === eatTab ? 'true' : 'false') + '">' + tb.label + '</button>';
+          }).join('');
+
+          const body = eatTab === 'add' ? addTabHtml() : eatTab === 'plan' ? planTabHtml() : logTabHtml();
+
+          eatPanelEl.innerHTML =
+            '<div class="panel-head eat-head">' +
+              '<div>' +
+                '<div class="panel-eyebrow">' + eatData.eyebrow + '</div>' +
+                '<h2 class="panel-title">' + eatData.title + '</h2>' +
+              '</div>' +
+              '<button class="chip" type="button" id="regional-chip" data-cursor="Open">' + eatData.chip + '</button>' +
+            '</div>' +
+            '<div class="panel-rule"></div>' +
+            '<article class="card targets">' +
+              '<div class="targets-head"><span class="card-label">' + eatData.targetsLabel + '</span>' +
+              '<button class="link-macro" type="button" id="how-derived" data-cursor="Open">' + eatData.derivedCta + '</button></div>' +
+              '<div class="macro-grid">' + eatData.macros.map(function (m) { return macroCellHtml(m, t[m.key]); }).join('') + '</div>' +
+              (derivedOpen ? '<div class="derived-pop">' + eatData.derivedCopy +
+                '<div><button type="button" id="close-derived">Close</button></div></div>' : '') +
+            '</article>' +
+            '<div class="eat-tabs" role="group" aria-label="Eat views">' + tabs + '</div>' +
+            '<div class="eat-body">' + body + '</div>';
+
+          eatData.macros.forEach(function (m) {
+            const read = eatPanelEl.querySelector('[data-macro="' + m.key + '"]');
+            if (read) read.setAttribute('data-from', t[m.key]);
+          });
+
+          refreshCards();
+          refreshMagnets();
+        }
+
+        function addFood(foodId, meal, servings) {
+          const fd = foodById(foodId);
+          if (!fd || !(servings > 0)) return;
+          const entry = { id: 'l' + Math.random().toString(36).slice(2, 9), foodId: foodId, meal: meal, servings: servings };
+          eatLog.push(entry);
+          saveEatLog();
+          newRowId = entry.id;
+          eatTab = 'log';
+          buildEatPanel();
+          syncMacros(true);
+          toast('Added ' + fd.name + ' to ' + meal);
+          setTimeout(function () {
+            if (newRowId !== entry.id) return;
+            newRowId = null;
+            const row = eatPanelEl.querySelector('.log-row.is-new');
+            if (row) row.classList.remove('is-new');
+          }, 1700);
+        }
+
+        function removeLogItem(id) {
+          const before = eatLog.length;
+          eatLog = eatLog.filter(function (it) { return it.id !== id; });
+          if (eatLog.length === before) return;
+          saveEatLog();
+          buildEatPanel();
+          syncMacros(false);
+        }
+
+        eatPanelEl.addEventListener('click', function (e) {
+          const t = e.target;
+
+          const tab = t.closest('[data-eat-tab]');
+          if (tab) {
+            const key = tab.getAttribute('data-eat-tab');
+            if (key === eatTab) return;
+            eatTab = key;
+            newRowId = null;
+            buildEatPanel();
+            return;
+          }
+
+          const step = t.closest('[data-step]');
+          if (step) {
+            const row = step.closest('[data-food]');
+            const id = row.getAttribute('data-food');
+            const next = Math.max(0.5, Math.min(20, (addServings[id] || 1) + Number(step.getAttribute('data-step')) * 0.5));
+            addServings[id] = next;
+            row.querySelector('[data-serve="' + id + '"]').textContent = next;
+            return;
+          }
+
+          const add = t.closest('[data-add]');
+          if (add) {
+            const id = add.getAttribute('data-add');
+            addFood(id, addMeal, addServings[id] || 1);
+            return;
+          }
+
+          const rem = t.closest('[data-remove]');
+          if (rem) { removeLogItem(rem.getAttribute('data-remove')); return; }
+
+          if (t.closest('#how-derived')) { derivedOpen = true; buildEatPanel(); return; }
+          if (t.closest('#close-derived')) { derivedOpen = false; buildEatPanel(); return; }
+          if (t.closest('#regional-chip')) { toast(eatData.chipToast); return; }
+
+          if (t.closest('#make-plan') || t.closest('#redo-plan')) { dayPlan = buildDayPlan(); buildEatPanel(); return; }
+          if (t.closest('#add-plan')) {
+            const plan = dayPlan || [];
+            let last = null;
+            plan.forEach(function (grp) {
+              grp.items.forEach(function (it) {
+                last = { id: 'l' + Math.random().toString(36).slice(2, 9), foodId: it.foodId, meal: grp.meal, servings: it.servings };
+                eatLog.push(last);
+              });
+            });
+            saveEatLog();
+            dayPlan = null;
+            eatTab = 'log';
+            buildEatPanel();
+            syncMacros(true);
+            toast('Day plan added to today\u2019s log');
+          }
+        });
+
+        // the search only replaces the list, so the field keeps focus and caret
+        eatPanelEl.addEventListener('input', function (e) {
+          if (e.target.id !== 'food-search') return;
+          foodQuery = e.target.value;
+          const list = eatPanelEl.querySelector('#food-list');
+          if (list) list.innerHTML = foodListHtml();
+        });
+
+        eatPanelEl.addEventListener('change', function (e) {
+          if (e.target.id === 'meal-select') addMeal = e.target.value;
+        });
+
+
+        /* ---- PROGRESS ---- */
+        // Copy and thresholds in one place; the numbers come from the stores that
+        // Train, Eat and Home's check-in already write.
+        const progressData = {
+          eyebrow: 'Progress',
+          title: 'What is changing',
+          changesTitle: 'What WRECK changed, and why',
+          weightKey: 'pj-weight',
+          decisionsKey: 'pj-progress-decisions',
+          windowDays: 7,
+          // TODO: tune with me
+          lowReadiness: 50,
+          proteinShortfall: 0.7,
+          proteinMinDays: 3,
+          cards: {
+            adherence: { label: 'Training adherence', unit: 'of 4 this week', color: '#6FBF8B' },
+            protein:   { label: 'Protein adherence', color: '#FF4A0F',
+                         empty: 'No food logged this week yet.' },
+            weight:    { label: 'Body weight', empty: 'No entries yet.',
+                         placeholder: "Today's weight (kg)", cta: 'Log' },
+            consistency: { label: 'Consistency',
+                           tail: 'The <span class="accent">habit</span> is the metric that matters most early on. Keep showing up.' }
+          },
+          emptyChange: 'Nothing changed yet. Log a check-in, a session or a meal and WRECK will explain every adjustment here.'
+        };
+
+        const progressPanelEl = document.getElementById('progress-panel');
+
+        function readJson(key, fallback) {
+          try {
+            const v = JSON.parse(localStorage.getItem(key) || 'null');
+            return v === null ? fallback : v;
+          } catch (e) { return fallback; }
+        }
+        function writeJson(key, value) {
+          try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+        }
+
+        // "this week" is the last N days including today, not a Monday reset:
+        // a streak should not blank out at midnight on Sunday
+        function recentKeys() {
+          const out = [];
+          const now = new Date();
+          for (let i = 0; i < progressData.windowDays; i++) {
+            const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+            out.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'));
+          }
+          return out;
+        }
+
+        // Train writes one key per session tab per day; count the finished ones
+        function trainStats() {
+          const recent = recentKeys();
+          let week = 0, allTime = 0;
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            const m = key && key.match(/^pj-train-(\d{4}-\d{2}-\d{2})-\d+$/);
+            if (!m) continue;
+            const rec = readJson(key, null);
+            if (!rec || !rec.done) continue;
+            allTime++;
+            if (recent.indexOf(m[1]) > -1) week++;
+          }
+          return { week: week, allTime: allTime };
+        }
+
+        // average daily protein over the days that actually have entries
+        function eatStats() {
+          let total = 0, days = 0;
+          recentKeys().forEach(function (date) {
+            const log = readJson('pj-eat-' + date, null);
+            if (!Array.isArray(log) || !log.length) return;
+            let p = 0;
+            log.forEach(function (it) {
+              const fd = foodById(it.foodId);
+              if (fd) p += fd.p * it.servings;
+            });
+            total += p;
+            days++;
+          });
+          return { avg: days ? total / days : 0, days: days };
+        }
+
+        function weightEntries() {
+          const raw = readJson(progressData.weightKey, []);
+          if (!Array.isArray(raw)) return [];
+          return raw
+            .filter(function (e) { return e && typeof e.date === 'string' && Number(e.kg) > 0; })
+            .map(function (e) { return { date: e.date, kg: Number(e.kg) }; })
+            .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+        }
+
+        // Prefers what Home actually saved; falls back to the live sliders so a
+        // check-in that was adjusted but not logged still reads through.
+        function checkinValues() {
+          const saved = readJson('pj-checkin', null);
+          const out = {};
+          checkin.fields.forEach(function (fld) {
+            const v = saved && saved[fld.key];
+            out[fld.key] = (typeof v === 'number' && v >= 1 && v <= checkin.max) ? v : checkinState[fld.key];
+          });
+          return out;
+        }
+
+        // TODO: tune with me -- energy and sleep read up, soreness and stress read
+        // down, each 1-5. All fours-and-threes lands mid-scale by design.
+        function readinessScore(v) {
+          const raw = (v.energy - 1) + (v.sleep - 1) + (checkin.max - v.soreness) + (checkin.max - v.stress);
+          return Math.round(raw / ((checkin.max - 1) * 4) * 100);
+        }
+
+        // TODO: tune with me -- three rules today; each returns one change entry.
+        function progressRules() {
+          const items = [];
+          const today = dayKey();
+          const cv = checkinValues();
+          const readiness = readinessScore(cv);
+          const tr = trainStats();
+          const ea = eatStats();
+          const proteinTarget = eatData.macros.filter(function (m) { return m.key === 'p'; })[0].target;
+
+          if (readiness < progressData.lowReadiness) {
+            items.push({
+              id: 'ease-load',
+              title: "Eased today's training load",
+              date: today,
+              desc: 'Your latest check-in shows low readiness, so WRECK trims volume on the next hard session. Push again once readiness recovers.',
+              basis: [
+                'Readiness ' + readiness + ' / 100',
+                'Energy ' + cv.energy + '/' + checkin.max + ', sleep ' + cv.sleep + '/' + checkin.max +
+                  ', soreness ' + cv.soreness + '/' + checkin.max + ', stress ' + cv.stress + '/' + checkin.max,
+                'Affects: Next resistance session volume'
+              ]
+            });
+          }
+
+          if (ea.days >= progressData.proteinMinDays && ea.avg < proteinTarget * progressData.proteinShortfall) {
+            items.push({
+              id: 'raise-protein',
+              title: 'Raised protein focus',
+              date: today,
+              desc: 'Protein has been running well under target across the week, so WRECK pushes higher-protein options to the front of your food list.',
+              basis: [
+                'Average ' + Math.round(ea.avg) + ' g of ' + proteinTarget + ' g',
+                'Logged on ' + ea.days + ' of ' + progressData.windowDays + ' days',
+                'Affects: Food ordering and day plan'
+              ]
+            });
+          }
+
+          if (tr.week >= homeData.week.goal) {
+            items.push({
+              id: 'hold-progression',
+              title: 'Held progression \u2014 on track',
+              date: today,
+              desc: 'You hit every session this week, so WRECK keeps the current progression rather than backing it off.',
+              basis: [
+                tr.week + ' of ' + homeData.week.goal + ' sessions this week',
+                tr.allTime + ' sessions all-time',
+                'Affects: Next week\u2019s load progression'
+              ]
+            });
+          }
+
+          return items;
+        }
+
+        function sparklineHtml(entries) {
+          const pts = entries.slice(-14);
+          if (pts.length < 2) return '';
+          const w = 100, h = 30;
+          const vals = pts.map(function (e) { return e.kg; });
+          const lo = Math.min.apply(null, vals);
+          const hi = Math.max.apply(null, vals);
+          const span = hi - lo || 1;
+          const coords = pts.map(function (e, i) {
+            const x = pts.length === 1 ? w / 2 : (i / (pts.length - 1)) * w;
+            const y = h - ((e.kg - lo) / span) * h;
+            return x.toFixed(2) + ',' + y.toFixed(2);
+          });
+          const last = coords[coords.length - 1].split(',');
+          return '<svg class="spark" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" aria-hidden="true">' +
+              '<polyline points="' + coords.join(' ') + '" vector-effect="non-scaling-stroke" />' +
+              '<circle cx="' + last[0] + '" cy="' + last[1] + '" r="1.6" vector-effect="non-scaling-stroke" />' +
+            '</svg>';
+        }
+
+        function weightCardHtml() {
+          const cfg = progressData.cards.weight;
+          const entries = weightEntries();
+          let head;
+          if (!entries.length) {
+            head = '<div class="prog-body">' + cfg.empty + '</div>';
+          } else {
+            const last = entries[entries.length - 1];
+            const first = entries[0];
+            const delta = last.kg - first.kg;
+            const sign = delta > 0 ? '+' : '';
+            head = '<div class="prog-big"><span class="prog-num">' + last.kg + '</span><span class="prog-unit">kg</span></div>' +
+              '<div class="weight-delta">' + (entries.length > 1
+                ? sign + (Math.round(delta * 10) / 10) + ' kg since ' + first.date
+                : 'First entry logged ' + first.date) + '</div>' +
+              sparklineHtml(entries);
+          }
+          return '<article class="card">' +
+              '<div class="card-label">' + cfg.label + '</div>' + head +
+              '<div class="weight-row">' +
+                '<input id="weight-input" type="text" inputmode="decimal" placeholder="' + cfg.placeholder + '" aria-label="' + cfg.placeholder + '" />' +
+                '<button class="btn-accent is-small" type="button" id="weight-log" data-cursor="Log" data-magnetic disabled>' + cfg.cta + '</button>' +
+              '</div>' +
+            '</article>';
+        }
+
+        function changeHtml(item, status) {
+          const badge = status === 'accepted' ? 'Accepted' : status === 'dismissed' ? 'Dismissed' : 'Proposed';
+          const cls = status === 'accepted' ? ' is-accepted' : status === 'dismissed' ? ' is-dismissed' : '';
+          return '<div class="change">' +
+              '<div class="change-head">' +
+                '<h4 class="change-title">' + item.title + '</h4>' +
+                '<span class="badge' + cls + '">' + badge + '</span>' +
+                '<span class="change-date">' + item.date + '</span>' +
+              '</div>' +
+              '<div class="change-desc">' + item.desc + '</div>' +
+              '<div class="change-basis">Based on</div>' +
+              '<ul>' + item.basis.map(function (b) { return '<li>' + b + '</li>'; }).join('') + '</ul>' +
+              (status ? '' :
+                '<div class="change-actions">' +
+                  '<button class="btn-mini is-accept" type="button" data-decide="accepted" data-rule="' + item.id + '" data-cursor="Accept">Accept</button>' +
+                  '<button class="btn-mini" type="button" data-decide="dismissed" data-rule="' + item.id + '" data-cursor="Dismiss">Dismiss</button>' +
+                '</div>') +
+            '</div>';
+        }
+
+        function buildProgressPanel() {
+          const tr = trainStats();
+          const ea = eatStats();
+          const proteinTarget = eatData.macros.filter(function (m) { return m.key === 'p'; })[0].target;
+          const c = progressData.cards;
+          const decisions = readJson(progressData.decisionsKey, {}) || {};
+          const items = progressRules();
+
+          const changes = items.length
+            ? '<div class="change-list">' + items.map(function (it) {
+                return changeHtml(it, decisions[it.id] || null);
+              }).join('') + '</div>'
+            : '<article class="card"><div class="prog-body">' + progressData.emptyChange + '</div></article>';
+
+          progressPanelEl.innerHTML =
+            '<div class="panel-head">' +
+              '<div class="panel-eyebrow">' + progressData.eyebrow + '</div>' +
+              '<h2 class="panel-title">' + progressData.title + '</h2>' +
+            '</div>' +
+            '<div class="panel-rule"></div>' +
+
+            '<div class="prog-grid">' +
+
+              '<article class="card">' +
+                '<div class="card-label">' + c.adherence.label + '</div>' +
+                '<div class="prog-big"><span class="prog-num" data-count="' + tr.week + '">0</span>' +
+                '<span class="prog-unit">' + c.adherence.unit + '</span></div>' +
+                '<div class="macro-bar" style="--c: ' + c.adherence.color + '"><i data-fill="' +
+                  Math.min(100, homeData.week.goal ? tr.week / homeData.week.goal * 100 : 0).toFixed(1) + '"></i></div>' +
+                '<div class="prog-note">' + tr.allTime + ' sessions logged all-time.</div>' +
+              '</article>' +
+
+              '<article class="card">' +
+                '<div class="card-label">' + c.protein.label + '</div>' +
+                '<div class="prog-big"><span class="prog-num" data-count="' + Math.round(ea.avg) + '">0</span>' +
+                '<span class="prog-unit">avg / ' + proteinTarget + ' g</span></div>' +
+                '<div class="macro-bar" style="--c: ' + c.protein.color + '"><i data-fill="' +
+                  Math.min(100, ea.avg / proteinTarget * 100).toFixed(1) + '"></i></div>' +
+                '<div class="prog-note">' + (ea.days
+                  ? 'Logged on ' + ea.days + ' of ' + progressData.windowDays + ' days.'
+                  : c.protein.empty) + '</div>' +
+              '</article>' +
+
+              weightCardHtml() +
+
+              '<article class="card">' +
+                '<div class="card-label">' + c.consistency.label + '</div>' +
+                '<div class="prog-body">You have logged ' + tr.allTime + ' session(s). ' + c.consistency.tail + '</div>' +
+              '</article>' +
+
+            '</div>' +
+
+            '<h3 class="prog-section">' + progressData.changesTitle + '</h3>' +
+            '<div class="panel-rule"></div>' +
+            changes;
+
+          refreshCards();
+          refreshMagnets();
+        }
+
+        // mirrors playPanelReveal, kept separate so Home's stays untouched
+        function playProgressReveal() {
+          dropCardRects();
+          progressPanelEl.querySelectorAll('[data-count]').forEach(function (el) {
+            const to = Number(el.getAttribute('data-count')) || 0;
+            if (!to) { el.textContent = '0'; return; }
+            animateValue(function (t) { el.textContent = Math.round(to * t).toLocaleString(); }, 1200);
+          });
+          progressPanelEl.querySelectorAll('[data-fill]').forEach(function (el) {
+            const to = el.getAttribute('data-fill');
+            el.style.width = '0%';
+            requestAnimationFrame(function () {
+              requestAnimationFrame(function () { el.style.width = to + '%'; });
+            });
+          });
+        }
+
+        function logWeight(value) {
+          const kg = Number(value);
+          if (!(kg > 0) || kg > 400) return;
+          const today = dayKey();
+          const entries = weightEntries().filter(function (e) { return e.date !== today; });
+          entries.push({ date: today, kg: Math.round(kg * 10) / 10 });
+          entries.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+          writeJson(progressData.weightKey, entries);
+          buildProgressPanel();
+          playProgressReveal();
+          toast('Logged ' + (Math.round(kg * 10) / 10) + ' kg for today');
+        }
+
+        progressPanelEl.addEventListener('click', function (e) {
+          const decide = e.target.closest('[data-decide]');
+          if (decide) {
+            const status = decide.getAttribute('data-decide');
+            const decisions = readJson(progressData.decisionsKey, {}) || {};
+            decisions[decide.getAttribute('data-rule')] = status;
+            writeJson(progressData.decisionsKey, decisions);
+            buildProgressPanel();
+            toast(status === 'accepted' ? 'Change accepted' : 'Change dismissed');
+            return;
+          }
+          if (e.target.closest('#weight-log')) {
+            const input = progressPanelEl.querySelector('#weight-input');
+            if (input) logWeight(input.value);
+          }
+        });
+
+        // decimals only, and the Log button stays dim until the value is usable
+        progressPanelEl.addEventListener('input', function (e) {
+          if (e.target.id !== 'weight-input') return;
+          const cleaned = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+          if (cleaned !== e.target.value) e.target.value = cleaned;
+          const kg = Number(cleaned);
+          const btn = progressPanelEl.querySelector('#weight-log');
+          if (btn) btn.disabled = !(kg > 0 && kg <= 400);
+        });
+
+        progressPanelEl.addEventListener('keydown', function (e) {
+          if (e.target.id === 'weight-input' && e.key === 'Enter') {
+            e.preventDefault();
+            logWeight(e.target.value);
+          }
+        });
+
+
+        /* ---- COACH ---- */
+        // All Coach copy and config. The monitor screen is the panel on a wide
+        // viewport; below 900 the identical markup goes into #coach-panel.
+        const coachData = {
+          eyebrow: 'Coach',
+          title: 'Talk it through',
+          clear: 'Clear',
+          placeholder: 'Ask about today, your targets, or a change',
+          foot: 'The coach explains your plan from your real data. For medical or injury questions, please see a qualified professional.',
+          offline: 'Offline mode',
+          // the source-image rect of the bezel opening, per theme
+          screen: {
+            imageW: 1374,
+            imageH: 1145,
+            day:   { x: 298, y: 323, w: 784, h: 471 },
+            night: { x: 325, y: 323, w: 722, h: 469 }
+          },
+          designW: 800,
+          designH: 480,
+          quick: [
+            { id: 'tired',   label: "I'm tired today" },
+            { id: 'missed',  label: 'I missed a workout' },
+            { id: 'meal',    label: 'Change my meal' },
+            { id: 'explain', label: "Explain today's workout" },
+            { id: 'eat',     label: 'What should I eat' },
+            { id: 'why',     label: 'Why did my plan change' }
+          ],
+          // one coaching cue per exercise name; anything unlisted falls back
+          cues: {
+            'Goblet Squat': 'Keep your chest tall and your elbows inside your knees.',
+            'Romanian Deadlift': 'Hips back first, and stop where your hamstrings tighten.',
+            'Dumbbell Bench Press': 'Lower under control; do not bounce off your chest.',
+            'Dumbbell Row': 'Pull to the hip, not the armpit.',
+            'Overhead Press': 'Squeeze your glutes so your lower back stays out of it.',
+            'Reverse Lunge': 'Step back, not forward, to keep the front knee calm.',
+            'Glute Bridge': 'Finish with the hips level, not arched.',
+            'Incline Dumbbell Press': 'Low incline only; steep turns it into a shoulder press.',
+            'One-arm Row': 'Keep your hips square through every rep.',
+            'Lateral Raise': 'Light weight, no swing, stop at shoulder height.'
+          },
+          fallback: 'I can help with a few things from your own data:\n\n\u00b7 how you are feeling today and what that changes\n\u00b7 today\u2019s session and how to do each movement\n\u00b7 what is left on your calories and protein\n\u00b7 why your plan changed recently\n\nTap a quick action below, or ask in your own words.'
+        };
+
+        const coachScreenEl = document.getElementById('coach-screen');
+        const coachFitEl = document.getElementById('coach-fit');
+        const coachPanelEl = document.getElementById('coach-panel');
+
+        function coachOnScreen() {
+          return window.matchMedia('(min-width: 900px)').matches;
+        }
+        function coachHost() {
+          return coachOnScreen() ? coachFitEl : coachPanelEl;
+        }
+        function coachStoreKey() { return 'pj-coach-' + dayKey(); }
+
+        // [{ role: 'coach' | 'user', text, actions? }]
+        let coachLog = (function () {
+          const saved = readJson(coachStoreKey(), null);
+          if (!Array.isArray(saved)) return [];
+          return saved.filter(function (m) {
+            return m && (m.role === 'coach' || m.role === 'user') && typeof m.text === 'string';
+          });
+        })();
+        let coachBusy = false;
+        let coachGreeted = false;
+        let coachOffline = false;
+        let coachMounted = null;
+
+        function saveCoachLog() { writeJson(coachStoreKey(), coachLog.slice(-40)); }
+
+        function todaySession() {
+          return trainData.sessions[activeTab] || trainData.sessions[0];
+        }
+        function todayPlan() {
+          return trainData.plans[todaySession().plan];
+        }
+
+        /* ---- the snapshot: the only user data that ever leaves the browser ---- */
+        function coachSnapshot() {
+          const tr = trainStats();
+          const ea = eatStats();
+          const cv = checkinValues();
+          const totals = eatTotals();
+          const targets = {};
+          eatData.macros.forEach(function (m) { targets[m.key] = m.target; });
+          const w = weightEntries();
+          return {
+            name: homeData.name,
+            todaySession: todaySession().label,
+            setsDone: doneCount(activeTab),
+            setsTotal: TOTAL_SETS,
+            sessionsThisWeek: tr.week,
+            sessionsGoal: homeData.week.goal,
+            sessionsAllTime: tr.allTime,
+            calories: Math.round(totals.kcal),
+            caloriesTarget: targets.kcal,
+            protein: Math.round(totals.p),
+            proteinTarget: targets.p,
+            proteinWeekAvg: Math.round(ea.avg),
+            daysLogged: ea.days,
+            readiness: readinessScore(cv),
+            checkin: cv,
+            latestWeightKg: w.length ? w[w.length - 1].kg : null,
+            recentChanges: progressRules().map(function (it) { return it.title; })
+          };
+        }
+
+        /* ---- the offline engine: every answer comes from stored data ---- */
+        function esc(t) {
+          return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function remainingFoods() {
+          const totals = eatTotals();
+          const kcalLeft = eatData.macros[0].target - totals.kcal;
+          const pTarget = eatData.macros.filter(function (m) { return m.key === 'p'; })[0].target;
+          const pLeft = pTarget - totals.p;
+          // highest protein per calorie first, then whatever still fits
+          const picks = eatData.foods.slice().sort(function (a, b) {
+            return (b.p / b.kcal) - (a.p / a.kcal);
+          }).filter(function (fd) {
+            return kcalLeft <= 0 || fd.kcal <= Math.max(160, kcalLeft);
+          }).slice(0, 3);
+          return { kcalLeft: Math.round(kcalLeft), pLeft: Math.round(pLeft), picks: picks };
+        }
+
+        function replyTired() {
+          const cv = checkinValues();
+          const r = readinessScore(cv);
+          if (r < progressData.lowReadiness) {
+            return {
+              text: 'Readiness is ' + r + ' / 100 today, which is low. That usually means less volume, not a day off \u2014 keep the same movements and cut a set from each.\n\nI can ease today\u2019s session and record why.',
+              actions: [{ kind: 'ease', label: 'Ease today\u2019s session' }]
+            };
+          }
+          return {
+            text: 'Readiness is ' + r + ' / 100, which is in normal range, so tiredness alone is not a reason to back off. Start the warm-up and judge it on the first working set \u2014 if that moves badly, cut a set.\n\nIf you want, update your check-in on Home and I will look again.',
+            actions: [{ kind: 'travel', to: 'mercury', label: 'Open Home' }]
+          };
+        }
+
+        function replyMissed() {
+          const tr = trainStats();
+          return {
+            text: 'A missed day is not a backlog. Nothing needs making up \u2014 you just start the next one.\n\nNext up is ' + todaySession().label +
+              '. You are at ' + tr.week + ' of ' + homeData.week.goal + ' sessions this week.',
+            actions: [{ kind: 'travel', to: 'venus', label: 'Open Train' }]
+          };
+        }
+
+        function replyEat() {
+          const r = remainingFoods();
+          const lines = r.picks.map(function (fd) {
+            return '\u00b7 ' + fd.name + ' (' + fd.serving + ') \u2014 ' + fd.kcal + ' kcal, ' + fd.p + ' g protein';
+          }).join('\n');
+          const head = r.kcalLeft > 0
+            ? 'You have ' + r.kcalLeft + ' kcal and ' + Math.max(0, r.pLeft) + ' g of protein left today.'
+            : 'You are ' + Math.abs(r.kcalLeft) + ' kcal over target, so keep anything else small and protein-heavy.';
+          return {
+            text: head + '\n\nThese fit best:\n' + lines,
+            actions: r.picks.map(function (fd) {
+              return { kind: 'addFood', food: fd.id, meal: fd.meal, label: 'Add ' + fd.name };
+            })
+          };
+        }
+
+        function replyExplain() {
+          const plan = todayPlan();
+          const lines = plan.map(function (ex, i) {
+            const name = exerciseAt(activeTab, i).name;
+            return '\u00b7 ' + name + ' \u2014 ' + trainData.setsPerExercise + ' \u00d7 10-12. ' +
+              (coachData.cues[name] || 'Control the lowering, then drive back up.');
+          }).join('\n');
+          return {
+            text: todaySession().label + ' today. ' + doneCount(activeTab) + ' of ' + TOTAL_SETS + ' sets are done.\n\n' + lines,
+            actions: [{ kind: 'travel', to: 'venus', label: 'Open Train' }]
+          };
+        }
+
+        function replyWhy() {
+          const items = progressRules();
+          if (!items.length) {
+            return { text: 'Nothing has changed yet. Log a check-in, a session or a meal and I will explain every adjustment here.', actions: [] };
+          }
+          const lines = items.map(function (it) {
+            return '\u00b7 ' + it.title + ' \u2014 ' + it.desc;
+          }).join('\n\n');
+          return {
+            text: 'Here is what WRECK changed recently and why:\n\n' + lines,
+            actions: [{ kind: 'travel', to: 'mars', label: 'Open Progress' }]
+          };
+        }
+
+        function replyWeight() {
+          const w = weightEntries();
+          if (!w.length) {
+            return { text: 'No weight logged yet. Add today\u2019s on Progress and I can track the trend from there \u2014 one reading means nothing, two weeks of them means a lot.',
+                     actions: [{ kind: 'travel', to: 'mars', label: 'Open Progress' }] };
+          }
+          const last = w[w.length - 1], first = w[0];
+          const d = Math.round((last.kg - first.kg) * 10) / 10;
+          return {
+            text: 'Latest is ' + last.kg + ' kg' + (w.length > 1
+              ? ', ' + (d > 0 ? '+' : '') + d + ' kg since ' + first.date + ' across ' + w.length + ' entries.'
+              : ', your first entry.') + '\n\nJudge it on the trend over weeks, not day to day.',
+            actions: [{ kind: 'travel', to: 'mars', label: 'Open Progress' }]
+          };
+        }
+
+        // keyword intent matching -- deliberately simple and offline
+        function coachReply(text) {
+          const q = String(text || '').toLowerCase();
+          const has = function () {
+            for (let i = 0; i < arguments.length; i++) if (q.indexOf(arguments[i]) > -1) return true;
+            return false;
+          };
+          if (has('tired', 'sore', 'exhaust', 'sleep', 'readiness', 'drained')) return replyTired();
+          if (has('missed', 'skip', 'behind', 'backlog')) return replyMissed();
+          if (has('meal', 'food', 'eat', 'protein', 'calorie', 'kcal', 'hungry', 'dinner', 'lunch', 'breakfast')) return replyEat();
+          if (has('workout', 'exercise', 'session', 'train', 'lift', 'set', 'rep')) return replyExplain();
+          if (has('weight', 'weigh', 'scale', 'kg')) return replyWeight();
+          if (has('why', 'change', 'changed', 'adjust', 'plan')) return replyWhy();
+          return { text: coachData.fallback, actions: [] };
+        }
+
+        function quickReply(id) {
+          if (id === 'tired') return replyTired();
+          if (id === 'missed') return replyMissed();
+          if (id === 'meal' || id === 'eat') return replyEat();
+          if (id === 'explain') return replyExplain();
+          if (id === 'why') return replyWhy();
+          return coachReply(id);
+        }
+
+        /* ---- rendering ---- */
+        function bubbleHtml(m, i) {
+          const acts = (m.actions || []).map(function (a, k) {
+            return '<button type="button" data-act="' + i + ':' + k + '"' +
+              (a.done ? ' disabled' : '') + '>' + esc(a.done ? a.doneLabel || a.label : a.label) + '</button>';
+          }).join('');
+          return '<div class="bubble is-' + m.role + '" data-i="' + i + '">' +
+            esc(m.text).replace(/\n/g, '<br>') +
+            (acts ? '<div class="bubble-actions">' + acts + '</div>' : '') +
+            '</div>';
+        }
+
+        function coachUiHtml() {
+          const quick = coachData.quick.map(function (q) {
+            return '<button class="qa" type="button" data-quick="' + q.id + '" data-cursor="Ask">' + q.label + '</button>';
+          }).join('');
+          return '<div class="coach-ui">' +
+              '<div class="coach-head">' +
+                '<div>' +
+                  '<div class="coach-eyebrow">' + coachData.eyebrow + '</div>' +
+                  '<h2 class="coach-title">' + coachData.title + '</h2>' +
+                '</div>' +
+                '<button class="coach-clear" type="button" data-coach-clear>' + coachData.clear + '</button>' +
+              '</div>' +
+              '<div class="coach-rule"></div>' +
+              '<div class="coach-actions">' + quick + '</div>' +
+              '<div class="coach-log" id="coach-log">' + coachLog.map(bubbleHtml).join('') + '</div>' +
+              '<form class="coach-form" data-coach-form>' +
+                '<input type="text" autocomplete="off" placeholder="' + coachData.placeholder + '" aria-label="' + coachData.placeholder + '" />' +
+                '<button class="coach-send" type="submit" data-cursor="Send" disabled>\u2192</button>' +
+              '</form>' +
+              '<div class="coach-foot">' + coachData.foot + '</div>' +
+              '<div class="coach-offline' + (coachOffline ? ' is-on' : '') + '">' + coachData.offline + '</div>' +
+            '</div>';
+        }
+
+        function coachLogEl() {
+          const host = coachHost();
+          return host ? host.querySelector('#coach-log') : null;
+        }
+        function scrollCoach() {
+          const el = coachLogEl();
+          if (el) el.scrollTop = el.scrollHeight;
+        }
+
+        function renderCoachLog() {
+          const el = coachLogEl();
+          if (!el) return;
+          el.innerHTML = coachLog.map(bubbleHtml).join('');
+          scrollCoach();
+        }
+
+        // Mounts into whichever host the viewport calls for, moving the chat
+        // between the monitor and the mobile panel on a resize across 900.
+        function mountCoach() {
+          const host = coachHost();
+          if (!host) return;
+          const mode = coachOnScreen() ? 'screen' : 'panel';
+          if (coachMounted !== mode || !host.querySelector('.coach-ui')) {
+            if (coachFitEl) coachFitEl.innerHTML = '';
+            if (coachPanelEl) coachPanelEl.innerHTML = '';
+            host.innerHTML = coachUiHtml();
+            coachMounted = mode;
+            if (mode === 'panel') host.querySelector('.coach-ui').classList.add('is-in');
+          }
+          layoutCoachScreen();
+          if (!coachLog.length) greetCoach();
+          else scrollCoach();
+          refreshCards();
+          refreshMagnets();
+        }
+
+        /* ---- the screen rect, derived from the cover transform ---- */
+        let screenMix = document.documentElement.dataset.theme === 'light' ? 0 : 1;
+
+        function screenRect() {
+          const cfg = coachData.screen;
+          const vw = window.innerWidth, vh = window.innerHeight;
+          const scale = Math.max(vw / cfg.imageW, vh / cfg.imageH);
+          const offX = (vw - cfg.imageW * scale) / 2;
+          const offY = (vh - cfg.imageH * scale) / 2;
+          const d = cfg.day, nn = cfg.night, t = screenMix;
+          const x = d.x + (nn.x - d.x) * t;
+          const y = d.y + (nn.y - d.y) * t;
+          const w = d.w + (nn.w - d.w) * t;
+          const h = d.h + (nn.h - d.h) * t;
+          return { left: offX + x * scale, top: offY + y * scale, width: w * scale, height: h * scale };
+        }
+
+        function layoutCoachScreen() {
+          if (!coachScreenEl || !coachOnScreen()) return;
+          const r = screenRect();
+          coachScreenEl.style.left = r.left.toFixed(1) + 'px';
+          coachScreenEl.style.top = r.top.toFixed(1) + 'px';
+          coachScreenEl.style.width = r.width.toFixed(1) + 'px';
+          coachScreenEl.style.height = r.height.toFixed(1) + 'px';
+          // fit the fixed design surface inside whatever the bezel gives us
+          const k = Math.min(r.width / coachData.designW, r.height / coachData.designH);
+          coachFitEl.style.transform =
+            'translate(' + ((r.width - coachData.designW * k) / 2).toFixed(1) + 'px,' +
+            ((r.height - coachData.designH * k) / 2).toFixed(1) + 'px) scale(' + k.toFixed(4) + ')';
+        }
+
+        window.addEventListener('resize', function () {
+          layoutCoachScreen();
+          if (current === 'progress') mountCoach();
+        });
+
+        /* ---- power on / off ---- */
+        function powerOnCoach() {
+          dropCardRects();
+          if (!coachOnScreen()) { mountCoach(); return; }
+          mountCoach();
+          coachScreenEl.classList.remove('is-booting');
+          void coachScreenEl.offsetWidth;
+          coachScreenEl.classList.add('is-on', 'is-booting');
+          const ui = coachFitEl.querySelector('.coach-ui');
+          if (ui) setTimeout(function () { ui.classList.add('is-in'); }, 260);
+        }
+
+        function powerOffCoach() {
+          if (!coachScreenEl) return;
+          coachScreenEl.classList.remove('is-on', 'is-booting');
+          const ui = coachFitEl && coachFitEl.querySelector('.coach-ui');
+          if (ui) ui.classList.remove('is-in');
+        }
+
+        /* ---- messages ---- */
+        function typeOut(el, text) {
+          if (reducedMotion) { el.innerHTML = esc(text).replace(/\n/g, '<br>'); scrollCoach(); return Promise.resolve(); }
+          const chars = Array.from(text);
+          return animateValue(function (t) {
+            const upto = Math.ceil(chars.length * t);
+            el.innerHTML = esc(chars.slice(0, upto).join('')).replace(/\n/g, '<br>');
+            scrollCoach();
+          }, Math.min(1400, 260 + chars.length * 7));
+        }
+
+        async function pushCoach(reply) {
+          const el = coachLogEl();
+          if (!el) {
+            coachLog.push({ role: 'coach', text: reply.text, actions: reply.actions || [] });
+            saveCoachLog();
+            return;
+          }
+          // typing indicator first, then the text types in place
+          const wrap = document.createElement('div');
+          wrap.className = 'bubble is-coach';
+          wrap.innerHTML = '<span class="dots"><span></span><span></span><span></span></span>';
+          el.appendChild(wrap);
+          scrollCoach();
+          await new Promise(function (r) { setTimeout(r, reducedMotion ? 0 : 420); });
+          wrap.innerHTML = '';
+          await typeOut(wrap, reply.text);
+          coachLog.push({ role: 'coach', text: reply.text, actions: reply.actions || [] });
+          saveCoachLog();
+          renderCoachLog();
+        }
+
+        function pushUser(text) {
+          coachLog.push({ role: 'user', text: text });
+          saveCoachLog();
+          renderCoachLog();
+        }
+
+        async function greetCoach() {
+          // the push is async, so the flag has to flip before the first await or a
+          // second mount slips in and greets again
+          if (coachGreeted || coachLog.length) return;
+          coachGreeted = true;
+          await pushCoach({
+            text: 'Hi ' + homeData.name + '. I am your WRECK coach. Today\u2019s session is ' + todaySession().label +
+              '. Ask me anything about your plan, or tap a quick action below.',
+            actions: []
+          });
+        }
+
+        /* ---- the live coach, with the offline engine as the fallback ---- */
+        // Probed once, lazily. A server with no GEMINI_API_KEY answers the POST
+        // with a 503, and the browser logs every non-2xx itself, so ask health
+        // first and simply never post when the key is missing.
+        let coachServer = null;
+        async function coachServerReady() {
+          if (coachServer !== null) return coachServer;
+          const ctrl = new AbortController();
+          const timer = setTimeout(function () { ctrl.abort(); }, 2500);
+          try {
+            const res = await fetch('/api/coach/health', { signal: ctrl.signal });
+            const data = res.ok ? await res.json() : null;
+            coachServer = !!(data && data.ok && data.configured);
+          } catch (e) {
+            coachServer = false;
+          } finally {
+            clearTimeout(timer);
+          }
+          return coachServer;
+        }
+
+        async function askServer(text) {
+          const ctrl = new AbortController();
+          const timer = setTimeout(function () { ctrl.abort(); }, 8000);
+          try {
+            const res = await fetch('/api/coach', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                message: text,
+                history: coachLog.slice(-10).map(function (m) { return { role: m.role, text: m.text }; }),
+                snapshot: coachSnapshot()
+              }),
+              signal: ctrl.signal
+            });
+            if (!res.ok) return null;
+            const data = await res.json();
+            return data && typeof data.reply === 'string' && data.reply.trim() ? data.reply.trim() : null;
+          } catch (e) {
+            return null;
+          } finally {
+            clearTimeout(timer);
+          }
+        }
+
+        function setOffline(on) {
+          if (coachOffline === on) return;
+          coachOffline = on;
+          const host = coachHost();
+          const dot = host && host.querySelector('.coach-offline');
+          if (dot) dot.classList.toggle('is-on', on);
+        }
+
+        async function sendCoach(text, quickId) {
+          if (coachBusy) return;
+          const clean = String(text || '').trim();
+          if (!clean) return;
+          coachBusy = true;
+          pushUser(clean);
+          try {
+            // Quick actions stay deterministic; only free text asks the server.
+            if (quickId) {
+              await pushCoach(quickReply(quickId));
+            } else {
+              const live = (await coachServerReady()) ? await askServer(clean) : null;
+              setOffline(!live);
+              await pushCoach(live ? { text: live, actions: [] } : coachReply(clean));
+            }
+          } finally {
+            coachBusy = false;
+          }
+        }
+
+        /* ---- inline actions ---- */
+        function runCoachAction(mi, ai) {
+          const msg = coachLog[mi];
+          const act = msg && msg.actions && msg.actions[ai];
+          if (!act || act.done) return;
+
+          if (act.kind === 'travel') { travel(act.to); return; }
+
+          if (act.kind === 'addFood') {
+            addFood(act.food, act.meal, 1);
+            act.done = true;
+            act.doneLabel = 'Added';
+          } else if (act.kind === 'ease') {
+            const decisions = readJson(progressData.decisionsKey, {}) || {};
+            decisions['ease-load'] = 'accepted';
+            writeJson(progressData.decisionsKey, decisions);
+            buildProgressPanel();
+            act.done = true;
+            act.doneLabel = 'Eased';
+            toast('Today\u2019s session eased');
+          }
+          saveCoachLog();
+          renderCoachLog();
+        }
+
+        function coachDelegate(root) {
+          root.addEventListener('click', function (e) {
+            const quick = e.target.closest('[data-quick]');
+            if (quick) {
+              const id = quick.getAttribute('data-quick');
+              const label = coachData.quick.filter(function (q) { return q.id === id; })[0];
+              sendCoach(label ? label.label : id, id);
+              return;
+            }
+            const act = e.target.closest('[data-act]');
+            if (act) {
+              const parts = act.getAttribute('data-act').split(':');
+              runCoachAction(Number(parts[0]), Number(parts[1]));
+              return;
+            }
+            if (e.target.closest('[data-coach-clear]')) {
+              coachLog = [];
+              coachGreeted = false;
+              saveCoachLog();
+              renderCoachLog();
+              greetCoach();
+            }
+          });
+
+          root.addEventListener('input', function (e) {
+            if (e.target.tagName !== 'INPUT') return;
+            const form = e.target.closest('[data-coach-form]');
+            if (!form) return;
+            form.querySelector('.coach-send').disabled = !e.target.value.trim();
+          });
+
+          root.addEventListener('submit', function (e) {
+            const form = e.target.closest('[data-coach-form]');
+            if (!form) return;
+            e.preventDefault();
+            const input = form.querySelector('input');
+            const text = input.value.trim();
+            if (!text) return;
+            input.value = '';
+            form.querySelector('.coach-send').disabled = true;
+            sendCoach(text, null);
+          });
+        }
+
+        coachDelegate(coachScreenEl);
+        coachDelegate(coachPanelEl);
+
+        /* ---- SCENE: parallax, night life, magnets ---- */
+        /* The grass sways on a CSS keyframe of its own. The cursor only drives
+           parallax here -- it never deforms the grass. */
+        const grassEl = document.getElementById('home-grass');
+        // which layer the cursor parallaxes, per section; a section that is not
+        // listed simply has no parallax and the loop never starts for it
+        const sceneBases = {
+          mercury: document.getElementById('home-base'),
+          venus: document.getElementById('train-base'),
+          earth: document.getElementById('eat-base'),
+          mars: document.getElementById('progress-base'),
+          progress: document.getElementById('coach-base')
+        };
+        const reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+        let baseX = 0, baseY = 0, grassX = 0, grassY = 0;
+        let aimX = 0, aimY = 0;
+        let introRect = null;
+        let homeRaf = 0;
+
+        // the parallax loop parks itself when settled; moving the mouse wakes it
+        function wakeScene() {
+          startScene();
+        }
+
+        function seedNightLife() {
+          let html = '';
+          for (let i = 0; i < 42; i++) {
+            html += '<span class="star" style="left:' + (Math.random() * 100).toFixed(2) + '%;top:' +
+              (Math.random() * 45).toFixed(2) + '%;animation-duration:' + (2.5 + Math.random() * 4).toFixed(2) +
+              's;animation-delay:-' + (Math.random() * 5).toFixed(2) + 's"></span>';
+          }
+          document.getElementById('home-stars').innerHTML = html;
+
+          html = '';
+          for (let i = 0; i < 16; i++) {
+            const drift = 7 + Math.random() * 8;
+            const glow = 2.5 + Math.random() * 3;
+            html += '<span class="fly" style="left:' + (6 + Math.random() * 88).toFixed(2) + '%;top:' +
+              (64 + Math.random() * 28).toFixed(2) + '%;--dx:' + (Math.random() * 70 - 35).toFixed(0) + 'px;--dy:' +
+              (Math.random() * 40 - 20).toFixed(0) + 'px;animation-duration:' + drift.toFixed(2) + 's,' + glow.toFixed(2) +
+              's;animation-delay:-' + (Math.random() * drift).toFixed(2) + 's,-' + (Math.random() * glow).toFixed(2) + 's"></span>';
+          }
+          document.getElementById('home-flies').innerHTML = html;
+        }
+
+        let magnets = [];
+        function refreshMagnets() {
+          magnets = [].slice.call(document.querySelectorAll('[data-magnetic]')).map(function(el) {
+            return { el: el, x: 0, y: 0, rect: null };
+          });
+        }
+        window.addEventListener('resize', function() {
+          magnets.forEach(function(m) { m.rect = null; });
+        });
+
+        function sceneFrame() {
+          homeRaf = 0;
+
+          const baseLayer = sceneBases[current];
+          const hasGrass = current === 'mercury';
+
+          // on Home the grass layer travels further than the sky, which reads as
+          // depth; Train has one layer, so it moves at the base rate alone
+          aimX = -(cursorX / window.innerWidth - 0.5) * 2;
+          aimY = -(cursorY / window.innerHeight - 0.5) * 2;
+          baseX += (aimX * 12 - baseX) * 0.06;
+          baseY += (aimY * 12 - baseY) * 0.06;
+
+          if (baseLayer) {
+            baseLayer.style.transform = 'translate3d(' + baseX.toFixed(2) + 'px,' + baseY.toFixed(2) + 'px,0)';
+          }
+          if (hasGrass) {
+            grassX += (aimX * 20 - grassX) * 0.06;
+            grassY += (aimY * 20 - grassY) * 0.06;
+            grassEl.style.transform = 'translate3d(' + grassX.toFixed(2) + 'px,' + grassY.toFixed(2) + 'px,0)';
+          }
+
+          let pulling = false;
+          for (let i = 0; i < magnets.length; i++) {
+            const m = magnets[i];
+            if (!m.rect) m.rect = m.el.getBoundingClientRect();
+            const cx = m.rect.left + m.rect.width / 2;
+            const cy = m.rect.top + m.rect.height / 2;
+            const dx = cursorX - cx;
+            const dy = cursorY - cy;
+            const dist = Math.hypot(dx, dy);
+            const pull = dist < 60 ? 1 - dist / 60 : 0;
+            const tx = Math.max(-6, Math.min(6, dx * pull * 0.35));
+            const ty = Math.max(-6, Math.min(6, dy * pull * 0.35));
+            m.x += (tx - m.x) * 0.2;
+            m.y += (ty - m.y) * 0.2;
+            if (Math.abs(m.x) > 0.05 || Math.abs(m.y) > 0.05) {
+              m.el.style.transform = 'translate3d(' + m.x.toFixed(2) + 'px,' + m.y.toFixed(2) + 'px,0)';
+              pulling = true;
+            } else if (m.el.style.transform) {
+              m.el.style.transform = '';
+            }
+          }
+
+          let tilting = false;
+          for (let i = 0; i < panelCards.length; i++) {
+            const c = panelCards[i];
+            if (!c.rect) c.rect = c.el.getBoundingClientRect();
+            const r = c.rect;
+            if (!r.width) continue;
+            const nx = (cursorX - r.left) / r.width;
+            const ny = (cursorY - r.top) / r.height;
+            const inside = nx >= 0 && nx <= 1 && ny >= 0 && ny <= 1;
+            if (inside !== c.lit) {
+              c.lit = inside;
+              c.el.classList.toggle('is-lit', inside);
+            }
+            if (inside) {
+              c.el.style.setProperty('--mx', (nx * 100).toFixed(1) + '%');
+              c.el.style.setProperty('--my', (ny * 100).toFixed(1) + '%');
+            }
+            // typing into a tilted card is miserable, so a card holding focus stays flat
+            const typing = c.el.contains(document.activeElement);
+            const aimRY = (inside && !reducedMotion && !typing) ? (nx - 0.5) * 6 : 0;
+            const aimRX = (inside && !reducedMotion && !typing) ? (0.5 - ny) * 6 : 0;
+            c.ry += (aimRY - c.ry) * 0.12;
+            c.rx += (aimRX - c.rx) * 0.12;
+            if (Math.abs(c.rx) > 0.02 || Math.abs(c.ry) > 0.02) {
+              c.el.style.transform = 'perspective(760px) rotateX(' + c.rx.toFixed(3) + 'deg) rotateY(' + c.ry.toFixed(3) + 'deg)';
+              tilting = true;
+            } else if (c.el.style.transform) {
+              c.el.style.transform = '';
+            }
+          }
+
+          // Nothing left to move: drop the loop entirely. wakeScene restarts it.
+          const settled = !pulling && !tilting &&
+            Math.abs(aimX * 12 - baseX) < 0.1 && Math.abs(aimY * 12 - baseY) < 0.1 &&
+            (!hasGrass || (Math.abs(aimX * 20 - grassX) < 0.1 && Math.abs(aimY * 20 - grassY) < 0.1));
+          if (settled) return;
+
+          homeRaf = requestAnimationFrame(sceneFrame);
+        }
+
+        function startScene() {
+          if (homeRaf || document.hidden) return;
+          homeRaf = requestAnimationFrame(sceneFrame);
+        }
+
+        function stopScene() {
+          if (homeRaf) { cancelAnimationFrame(homeRaf); homeRaf = 0; }
+        }
+
+        document.addEventListener('visibilitychange', function() {
+          if (document.hidden) stopScene();
+          else startScene();
+        });
+
+        seedNightLife();
+
+        /* 12. BOOT ORDER */
+        // a finished session is stored per day, so Home's weekly count survives a reload
+        homeData.week.value = Math.min(homeData.week.goal,
+          homeData.week.value + trainTabs.filter(function (t) { return t.done; }).length);
+        // a logged day is stored per date, so Home's calorie card survives a reload
+        homeData.calories.value = Math.round(eatTotals().kcal);
+        buildPanel();
+        buildTrainPanel();
+        buildEatPanel();
+        buildProgressPanel();
+        resizeCanvas();
+        render();
+        requestAnimationFrame(draw);
+        requestAnimationFrame(cursorLoop);
+        runPreloader();
+      })();
+    </script>
+  </body>
+</html>
+
